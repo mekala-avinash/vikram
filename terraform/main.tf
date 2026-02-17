@@ -94,16 +94,30 @@ module "storage_account" {
 }
 
 # ============================================================================
+# LOG ANALYTICS WORKSPACE (required for Application Insights)
+# ============================================================================
+resource "azurerm_log_analytics_workspace" "main" {
+  name                = "${local.resource_prefix}-law"
+  location            = var.location
+  resource_group_name = module.resource_group.name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+  
+  tags = local.common_tags
+}
+
+# ============================================================================
 # APPLICATION INSIGHTS (for monitoring)
 # ============================================================================
 module "application_insights" {
   source  = "Azure/avm-res-insights-component/azurerm"
   version = "~> 0.1"
   
-  name             = "${local.resource_prefix}-appinsights"
-  location         = var.location
+  name                = "${local.resource_prefix}-appinsights"
+  location            = var.location
   resource_group_name = module.resource_group.name
-  application_type = "web"
+  application_type    = "web"
+  workspace_id        = azurerm_log_analytics_workspace.main.id
   
   tags = local.common_tags
 }

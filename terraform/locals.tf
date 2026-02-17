@@ -24,7 +24,7 @@ locals {
     APPINSIGHTS_INSTRUMENTATIONKEY = module.application_insights.instrumentation_key
     
     # SQL Database connection
-    SQL_SERVER_FQDN     = module.sql_server.fqdn
+    SQL_SERVER_FQDN     = module.sql_server.resource.fully_qualified_domain_name
     SQL_DATABASE_NAME   = var.sql_database_name
     SQL_TABLE_NAME      = var.sql_table_name
     SQL_ADMIN_USERNAME  = var.sql_admin_username
@@ -45,5 +45,5 @@ locals {
   }
 
   # SQL connection string (stored as environment variable)
-  sql_connection_string = "Server=tcp:${module.sql_server.fqdn},1433;Initial Catalog=${var.sql_database_name};Persist Security Info=False;User ID=${var.sql_admin_username};Password=${var.sql_admin_password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+  sql_connection_string = "Server=tcp:${module.sql_server.resource.fully_qualified_domain_name},1433;Initial Catalog=${var.sql_database_name};Persist Security Info=False;User ID=${var.sql_admin_username};Password=${var.sql_admin_password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
 }

@@ -32,11 +32,12 @@ module "virtual_network" {
   
   name          = "${local.resource_prefix}-vnet"
   location      = var.location
-  parent_id     = module.resource_group.id
+  resource_group_name = module.resource_group.name
   address_space = ["10.0.0.0/16"]
   
   subnets = {
     function_subnet = {
+      name             = "function-subnet"
       address_prefixes = ["10.0.1.0/24"]
       delegation = [{
         name = "Microsoft.Web/serverFarms"
@@ -49,7 +50,8 @@ module "virtual_network" {
       }]
     }
     sql_subnet = {
-      address_prefixes = ["10.0.2.0/24"]
+      name              = "sql-subnet"
+      address_prefixes  = ["10.0.2.0/24"]
       service_endpoints = ["Microsoft.Sql"]
     }
   }
@@ -150,7 +152,7 @@ module "sql_server" {
 # SQL Database
 resource "azurerm_mssql_database" "xml_database" {
   name      = var.sql_database_name
-  server_id = module.sql_server.id
+  server_id = module.sql_server.resource.id
   sku_name  = var.sql_sku_name
   
   tags = local.common_tags
@@ -182,14 +184,12 @@ module "function_app" {
   name                     = "${local.resource_prefix}-func"
   location                 = var.location
   resource_group_name      = module.resource_group.name
-  kind                     = "functionapp,linux"
+  kind                     = "functionapp"
   os_type                  = "Linux"
   service_plan_resource_id = module.app_service_plan.resource_id
   
   # Function App configuration
   site_config = {
-    linux_fx_version = "PYTHON|3.11"
-    
     application_stack = {
       python_version = "3.11"
     }
@@ -218,7 +218,7 @@ module "function_app" {
   }
   
   # VNet integration
-  virtual_network_subnet_id = module.virtual_network.subnets["function_subnet"].resource_id
+  virtual_network_subnet_id = module.virtual_network.subnets["function_subnet"].id
   
   tags = local.common_tags
 }
@@ -229,7 +229,7 @@ module "function_app" {
 
 # Grant Function App Managed Identity access to Storage Account
 resource "azurerm_role_assignment" "function_storage_blob_contributor" {
-  scope                = module.storage_account.resource_id
+  scope                = module.storage_account.resource.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = module.managed_identity.principal_id
 }

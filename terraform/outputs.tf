@@ -5,17 +5,17 @@ output "resource_group_name" {
 
 output "resource_group_id" {
   description = "ID of the resource group"
-  value       = module.resource_group.id
+  value       = module.resource_group.resource_id
 }
 
 output "sql_server_fqdn" {
   description = "Fully qualified domain name of the SQL Server"
-  value       = module.sql_server.fqdn
+  value       = module.sql_server.resource.fully_qualified_domain_name
 }
 
 output "sql_server_name" {
   description = "Name of the SQL Server"
-  value       = module.sql_server.name
+  value       = module.sql_server.resource.name
 }
 
 output "sql_database_name" {
@@ -35,7 +35,7 @@ output "storage_account_name" {
 
 output "storage_account_primary_blob_endpoint" {
   description = "Primary blob endpoint of the Storage Account"
-  value       = module.storage_account.primary_blob_endpoint
+  value       = module.storage_account.resource.primary_blob_endpoint
 }
 
 output "fa3_container_name" {

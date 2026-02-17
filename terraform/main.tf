@@ -17,10 +17,10 @@ module "managed_identity" {
   source  = "Azure/avm-res-managedidentity-userassignedidentity/azurerm"
   version = "~> 0.3"
   
-  name              = "${local.resource_prefix}-identity"
-  location          = var.location
-  resource_group_id = module.resource_group.id
-  tags              = local.common_tags
+  name                = "${local.resource_prefix}-identity"
+  location            = var.location
+  resource_group_name = module.resource_group.name
+  tags                = local.common_tags
 }
 
 # ============================================================================

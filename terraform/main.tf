@@ -2,7 +2,8 @@
 # RESOURCE GROUP
 # ============================================================================
 module "resource_group" {
-  source  = "../modules/avm-res-resources-resourcegroup"
+  source  = "Azure/avm-res-resources-resourcegroup/azurerm"
+  version = "~> 0.1"
   
   name     = "${local.resource_prefix}-rg"
   location = var.location
@@ -13,7 +14,8 @@ module "resource_group" {
 # MANAGED IDENTITY
 # ============================================================================
 module "managed_identity" {
-  source  = "../modules/avm-res-managedidentity-userassignedidentity"
+  source  = "Azure/avm-res-managedidentity-userassignedidentity/azurerm"
+  version = "~> 0.3"
   
   name                = "${local.resource_prefix}-identity"
   location            = var.location
@@ -25,7 +27,8 @@ module "managed_identity" {
 # VIRTUAL NETWORK (for secure communication)
 # ============================================================================
 module "virtual_network" {
-  source  = "../modules/avm-res-network-virtualnetwork"
+  source  = "Azure/avm-res-network-virtualnetwork/azurerm"
+  version = "~> 0.4"
   
   name                = "${local.resource_prefix}-vnet"
   location            = var.location
@@ -58,7 +61,8 @@ module "virtual_network" {
 # STORAGE ACCOUNT (for FA3 data and function code)
 # ============================================================================
 module "storage_account" {
-  source  = "../modules/avm-res-storage-storageaccount"
+  source  = "Azure/avm-res-storage-storageaccount/azurerm"
+  version = "~> 0.2"
   
   name                     = "${replace(local.resource_prefix, "-", "")}sa"
   location                 = var.location
@@ -93,7 +97,8 @@ module "storage_account" {
 # APPLICATION INSIGHTS (for monitoring)
 # ============================================================================
 module "application_insights" {
-  source  = "../modules/avm-res-insights-component"
+  source  = "Azure/avm-res-insights-component/azurerm"
+  version = "~> 0.1"
   
   name                = "${local.resource_prefix}-appinsights"
   location            = var.location
@@ -107,7 +112,8 @@ module "application_insights" {
 # SQL SERVER AND DATABASE
 # ============================================================================
 module "sql_server" {
-  source  = "../modules/avm-res-sql-server"
+  source  = "Azure/avm-res-sql-server/azurerm"
+  version = "~> 0.2"
   
   name                         = "${local.resource_prefix}-sqlserver"
   location                     = var.location
@@ -153,7 +159,8 @@ resource "azurerm_mssql_database" "xml_database" {
 # APP SERVICE PLAN (for Function App)
 # ============================================================================
 module "app_service_plan" {
-  source  = "../modules/avm-res-web-serverfarm"
+  source  = "Azure/avm-res-web-serverfarm/azurerm"
+  version = "~> 0.2"
   
   name                = "${local.resource_prefix}-asp"
   location            = var.location
@@ -168,7 +175,8 @@ module "app_service_plan" {
 # FUNCTION APP
 # ============================================================================
 module "function_app" {
-  source  = "../modules/avm-res-web-site"
+  source  = "Azure/avm-res-web-site/azurerm"
+  version = "~> 0.10"
   
   name                = "${local.resource_prefix}-func"
   location            = var.location

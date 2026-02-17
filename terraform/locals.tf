@@ -9,6 +9,7 @@ locals {
       Environment = var.environment
       Location    = var.location
       DeployedOn  = timestamp()
+      created-by  = "vikram"
     }
   )
 

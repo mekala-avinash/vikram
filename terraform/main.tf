@@ -17,10 +17,10 @@ module "managed_identity" {
   source  = "Azure/avm-res-managedidentity-userassignedidentity/azurerm"
   version = "~> 0.3"
   
-  name                = "${local.resource_prefix}-identity"
-  location            = var.location
-  resource_group_name = module.resource_group.name
-  tags                = local.common_tags
+  name              = "${local.resource_prefix}-identity"
+  location          = var.location
+  resource_group_id = module.resource_group.id
+  tags              = local.common_tags
 }
 
 # ============================================================================
@@ -30,10 +30,10 @@ module "virtual_network" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
   version = "~> 0.4"
   
-  name                = "${local.resource_prefix}-vnet"
-  location            = var.location
-  resource_group_name = module.resource_group.name
-  address_space       = ["10.0.0.0/16"]
+  name          = "${local.resource_prefix}-vnet"
+  location      = var.location
+  parent_id     = module.resource_group.id
+  address_space = ["10.0.0.0/16"]
   
   subnets = {
     function_subnet = {
@@ -100,10 +100,10 @@ module "application_insights" {
   source  = "Azure/avm-res-insights-component/azurerm"
   version = "~> 0.1"
   
-  name                = "${local.resource_prefix}-appinsights"
-  location            = var.location
+  name             = "${local.resource_prefix}-appinsights"
+  location         = var.location
   resource_group_name = module.resource_group.name
-  application_type    = "web"
+  application_type = "web"
   
   tags = local.common_tags
 }

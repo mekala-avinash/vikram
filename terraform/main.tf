@@ -122,24 +122,11 @@ module "sql_server" {
   administrator_login          = var.sql_admin_username
   administrator_login_password = var.sql_admin_password
   
-  # Azure AD authentication
-  azuread_administrator = {
-    login_username = "SQL Admin"
-    object_id      = module.managed_identity.principal_id
-  }
-  
   # Firewall rules - allow Azure services
   firewall_rules = {
     AllowAzureServices = {
       start_ip_address = "0.0.0.0"
       end_ip_address   = "0.0.0.0"
-    }
-  }
-  
-  # Virtual network rules
-  virtual_network_rules = {
-    sql_subnet = {
-      subnet_id = module.virtual_network.subnets["sql_subnet"].id
     }
   }
   

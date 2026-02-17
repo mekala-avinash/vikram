@@ -1,0 +1,38 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+*.tfvars
+!terraform.tfvars.example
+
+# Function App
+__pycache__/
+*.py[cod]
+*$py.class
+.python_packages/
+.venv/
+venv/
+ENV/
+env/
+
+# Azure Functions
+local.settings.json
+.vscode/
+
+# Modules (downloaded by script)
+modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log

@@ -87,5 +87,5 @@ output "virtual_network_name" {
 
 output "virtual_network_id" {
   description = "ID of the Virtual Network"
-  value       = module.virtual_network.id
+  value       = module.virtual_network.resource_id
 }

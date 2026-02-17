@@ -191,7 +191,9 @@ module "function_app" {
   # Function App configuration
   site_config = {
     application_stack = {
-      python_version = "3.11"
+      python_version = {
+        version = "3.11"
+      }
     }
     
     # Enable VNet integration
@@ -203,8 +205,8 @@ module "function_app" {
     local.function_app_settings,
     {
       # Storage account connection for function runtime
-      AzureWebJobsStorage        = module.storage_account.primary_connection_string
-      WEBSITE_CONTENTAZUREFILECONNECTIONSTRING = module.storage_account.primary_connection_string
+      AzureWebJobsStorage        = module.storage_account.resource.primary_connection_string
+      WEBSITE_CONTENTAZUREFILECONNECTIONSTRING = module.storage_account.resource.primary_connection_string
       WEBSITE_CONTENTSHARE       = "${local.resource_prefix}-func-content"
       
       # SQL connection string (stored as environment variable instead of Key Vault)

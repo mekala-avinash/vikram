@@ -32,7 +32,7 @@ module "virtual_network" {
   
   name          = "${local.resource_prefix}-vnet"
   location      = var.location
-  resource_group_name = module.resource_group.name
+  parent_id     = module.resource_group.resource_id
   address_space = ["10.0.0.0/16"]
   
   subnets = {

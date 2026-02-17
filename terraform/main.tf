@@ -179,12 +179,12 @@ module "function_app" {
   source  = "Azure/avm-res-web-site/azurerm"
   version = "~> 0.10"
   
-  name                = "${local.resource_prefix}-func"
-  location            = var.location
-  resource_group_name = module.resource_group.name
-  kind                = "functionapp,linux"
-  
-  service_plan_id = module.app_service_plan.id
+  name                     = "${local.resource_prefix}-func"
+  location                 = var.location
+  resource_group_name      = module.resource_group.name
+  kind                     = "functionapp,linux"
+  os_type                  = "Linux"
+  service_plan_resource_id = module.app_service_plan.resource_id
   
   # Function App configuration
   site_config = {
@@ -213,13 +213,12 @@ module "function_app" {
   )
   
   # Managed Identity
-  identity = {
-    type         = "UserAssigned"
-    identity_ids = [module.managed_identity.id]
+  managed_identities = {
+    user_assigned_resource_ids = [module.managed_identity.resource_id]
   }
   
   # VNet integration
-  virtual_network_subnet_id = module.virtual_network.subnets["function_subnet"].id
+  virtual_network_subnet_id = module.virtual_network.subnets["function_subnet"].resource_id
   
   tags = local.common_tags
 }
@@ -230,7 +229,7 @@ module "function_app" {
 
 # Grant Function App Managed Identity access to Storage Account
 resource "azurerm_role_assignment" "function_storage_blob_contributor" {
-  scope                = module.storage_account.id
+  scope                = module.storage_account.resource_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = module.managed_identity.principal_id
 }

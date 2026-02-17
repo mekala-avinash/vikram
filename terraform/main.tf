@@ -113,12 +113,12 @@ module "application_insights" {
 # ============================================================================
 module "sql_server" {
   source  = "Azure/avm-res-sql-server/azurerm"
-  version = "~> 0.2"
+  version = "0.1.6"
   
   name                         = "${local.resource_prefix}-sqlserver"
   location                     = var.location
   resource_group_name          = module.resource_group.name
-  version                      = "12.0"
+  server_version               = "12.0"
   administrator_login          = var.sql_admin_username
   administrator_login_password = var.sql_admin_password
   

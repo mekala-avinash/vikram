@@ -3,8 +3,8 @@
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
-terraform.tfvars
-*.tfvars
+# terraform.tfvars
+# *.tfvars
 !terraform.tfvars.example
 
 # Function App

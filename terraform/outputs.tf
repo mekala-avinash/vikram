@@ -62,12 +62,12 @@ output "function_app_name" {
 
 output "function_app_default_hostname" {
   description = "Default hostname of the Function App"
-  value       = module.function_app.default_hostname
+  value       = module.function_app.resource.default_hostname
 }
 
 output "function_app_id" {
   description = "ID of the Function App"
-  value       = module.function_app.id
+  value       = module.function_app.resource.id
 }
 
 output "managed_identity_principal_id" {

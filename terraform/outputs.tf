@@ -89,3 +89,37 @@ output "virtual_network_id" {
   description = "ID of the Virtual Network"
   value       = module.virtual_network.resource_id
 }
+
+# ============================================================================
+# PHASE 3 & 4 OUTPUTS
+# ============================================================================
+
+output "service_bus_namespace_name" {
+  description = "Name of the Service Bus namespace"
+  value       = azurerm_servicebus_namespace.main.name
+}
+
+output "service_bus_namespace_id" {
+  description = "ID of the Service Bus namespace"
+  value       = azurerm_servicebus_namespace.main.id
+}
+
+output "invoice_queue_name" {
+  description = "Name of the invoice-to-process queue (Phase 1 → 2)"
+  value       = azurerm_servicebus_queue.invoice_to_process.name
+}
+
+output "invoice_topic_name" {
+  description = "Name of the invoice-ready-for-transformation topic (Phase 2 → 3)"
+  value       = azurerm_servicebus_topic.invoice_ready_for_transformation.name
+}
+
+output "logic_app_name" {
+  description = "Name of the Logic App Standard (Phase 3 transformer)"
+  value       = azurerm_logic_app_standard.transform.name
+}
+
+output "logic_app_id" {
+  description = "ID of the Logic App Standard"
+  value       = azurerm_logic_app_standard.transform.id
+}

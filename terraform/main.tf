@@ -205,12 +205,23 @@ module "function_app" {
     local.function_app_settings,
     {
       # Storage account connection for function runtime
-      AzureWebJobsStorage        = module.storage_account.resource.primary_connection_string
+      AzureWebJobsStorage                      = module.storage_account.resource.primary_connection_string
       WEBSITE_CONTENTAZUREFILECONNECTIONSTRING = module.storage_account.resource.primary_connection_string
-      WEBSITE_CONTENTSHARE       = "${local.resource_prefix}-func-content"
-      
-      # SQL connection string (stored as environment variable instead of Key Vault)
+      WEBSITE_CONTENTSHARE                     = "${local.resource_prefix}-func-content"
+
+      # SQL connection string
       SQL_CONNECTION_STRING = local.sql_connection_string
+
+      # Service Bus (Phase 1 & 2)
+      SERVICEBUS_CONNECTION_STRING = azurerm_servicebus_namespace.main.default_primary_connection_string
+      INVOICE_QUEUE_NAME           = azurerm_servicebus_queue.invoice_to_process.name
+      INVOICE_TOPIC_NAME           = azurerm_servicebus_topic.invoice_ready_for_transformation.name
+
+      # KSeF API (Phase 4)
+      KSEF_API_URL          = var.ksef_api_url
+      KSEF_API_KEY          = var.ksef_api_key
+      SUBMIT_TIMER_SCHEDULE = var.submit_timer_schedule
+      SUBMIT_BATCH_SIZE     = tostring(var.submit_batch_size)
     }
   )
   
@@ -241,4 +252,113 @@ resource "azurerm_role_assignment" "function_sql_contributor" {
   scope                = azurerm_mssql_database.xml_database.id
   role_definition_name = "SQL DB Contributor"
   principal_id         = module.managed_identity.principal_id
+}
+
+# Grant Managed Identity access to Service Bus (send & receive)
+resource "azurerm_role_assignment" "function_servicebus_sender" {
+  scope                = azurerm_servicebus_namespace.main.id
+  role_definition_name = "Azure Service Bus Data Sender"
+  principal_id         = module.managed_identity.principal_id
+}
+
+resource "azurerm_role_assignment" "function_servicebus_receiver" {
+  scope                = azurerm_servicebus_namespace.main.id
+  role_definition_name = "Azure Service Bus Data Receiver"
+  principal_id         = module.managed_identity.principal_id
+}
+
+# ============================================================================
+# SERVICE BUS
+# ============================================================================
+
+resource "azurerm_servicebus_namespace" "main" {
+  name                = "${local.resource_prefix}-sbns"
+  location            = var.location
+  resource_group_name = module.resource_group.name
+  sku                 = var.service_bus_sku
+
+  tags = local.common_tags
+}
+
+# Queue: Phase 1 → Phase 2 (one message per invoice)
+resource "azurerm_servicebus_queue" "invoice_to_process" {
+  name         = "invoice-to-process"
+  namespace_id = azurerm_servicebus_namespace.main.id
+
+  max_delivery_count              = 5
+  dead_lettering_on_message_expiration = true
+  default_message_ttl             = "P7D" # 7 days
+}
+
+# Topic: Phase 2 → Phase 3 (fan-out capable)
+resource "azurerm_servicebus_topic" "invoice_ready_for_transformation" {
+  name         = "invoice-ready-for-transformation"
+  namespace_id = azurerm_servicebus_namespace.main.id
+
+  default_message_ttl = "P7D"
+}
+
+# Subscription for Logic App (Phase 3)
+resource "azurerm_servicebus_subscription" "logic_app_transform" {
+  name               = "logic-app-transform"
+  topic_id           = azurerm_servicebus_topic.invoice_ready_for_transformation.id
+  max_delivery_count = 5
+  dead_lettering_on_message_expiration = true
+}
+
+# ============================================================================
+# LOGIC APP (Phase 3: XSLT Transformation)
+# ============================================================================
+
+# App Service Plan for Logic App Standard
+resource "azurerm_service_plan" "logic_app_plan" {
+  name                = "${local.resource_prefix}-la-asp"
+  location            = var.location
+  resource_group_name = module.resource_group.name
+  os_type             = "Windows"
+  sku_name            = "WS1" # Workflow Standard 1
+
+  tags = local.common_tags
+}
+
+# Storage account for Logic App runtime
+resource "azurerm_storage_account" "logic_app_storage" {
+  name                     = "${replace(local.resource_prefix, "-", "")}last"
+  location                 = var.location
+  resource_group_name      = module.resource_group.name
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+
+  tags = local.common_tags
+}
+
+# Logic App Standard
+resource "azurerm_logic_app_standard" "transform" {
+  name                       = "${local.resource_prefix}-la"
+  location                   = var.location
+  resource_group_name        = module.resource_group.name
+  app_service_plan_id        = azurerm_service_plan.logic_app_plan.id
+  storage_account_name       = azurerm_storage_account.logic_app_storage.name
+  storage_account_access_key = azurerm_storage_account.logic_app_storage.primary_access_key
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [module.managed_identity.resource_id]
+  }
+
+  app_settings = {
+    FUNCTIONS_WORKER_RUNTIME     = "node"
+    WEBSITE_NODE_DEFAULT_VERSION = "~18"
+
+    # Service Bus connection
+    SERVICEBUS_CONNECTION = azurerm_servicebus_namespace.main.default_primary_connection_string
+
+    # SQL connection
+    SQL_CONNECTION_STRING = local.sql_connection_string
+
+    # XSLT map path
+    XSLT_MAP_PATH = "maps/KsefFa3.xslt"
+  }
+
+  tags = local.common_tags
 }

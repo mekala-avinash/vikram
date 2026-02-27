@@ -1,0 +1,149 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Complete_Service_Bus_Message": {
+                "inputs": {
+                    "parameters": {
+                        "lockToken": "@triggerBody()?['LockToken']",
+                        "sessionId": "@triggerBody()?['SessionId']",
+                        "subscriptionName": "logic-app-transform",
+                        "topicName": "invoice-ready-for-transformation"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "serviceBus",
+                        "operationId": "completeTopicMessage",
+                        "serviceProviderId": "/serviceProviders/serviceBus"
+                    }
+                },
+                "runAfter": {
+                    "Execute_usp_InsertPartnerSubmission": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ServiceProvider"
+            },
+            "Dead_Letter_On_Failure": {
+                "actions": {
+                    "Dead_Letter_Message": {
+                        "inputs": {
+                            "parameters": {
+                                "deadLetterReason": "TransformationFailed",
+                                "deadLetterErrorDescription": "@{body('Get_Canonical_XML')?['message']}",
+                                "lockToken": "@triggerBody()?['LockToken']",
+                                "subscriptionName": "logic-app-transform",
+                                "topicName": "invoice-ready-for-transformation"
+                            },
+                            "serviceProviderConfiguration": {
+                                "connectionName": "serviceBus",
+                                "operationId": "deadLetterTopicMessage",
+                                "serviceProviderId": "/serviceProviders/serviceBus"
+                            }
+                        },
+                        "type": "ServiceProvider"
+                    }
+                },
+                "runAfter": {
+                    "Transform_XML_to_KSeF": [
+                        "Failed",
+                        "TimedOut"
+                    ]
+                },
+                "type": "Scope"
+            },
+            "Execute_usp_InsertPartnerSubmission": {
+                "inputs": {
+                    "parameters": {
+                        "query": "EXEC [dbo].[usp_InsertPartnerSubmission] @EDIIntegrationId = @EDIIntegrationId, @PartnerXML = @PartnerXML",
+                        "queryParameters": {
+                            "EDIIntegrationId": "@int(json(base64ToString(triggerBody()?['ContentData']))['EDIIntegrationId'])",
+                            "PartnerXML": "@body('Transform_XML_to_KSeF')"
+                        }
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "sql",
+                        "operationId": "executeQuery",
+                        "serviceProviderId": "/serviceProviders/sql"
+                    }
+                },
+                "runAfter": {
+                    "Transform_XML_to_KSeF": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ServiceProvider"
+            },
+            "Get_Canonical_XML": {
+                "inputs": {
+                    "parameters": {
+                        "query": "SELECT CanonicalXML FROM [dbo].[EDIIntegrationTable] WHERE EDIIntegrationId = @EDIIntegrationId",
+                        "queryParameters": {
+                            "EDIIntegrationId": "@int(json(base64ToString(triggerBody()?['ContentData']))['EDIIntegrationId'])"
+                        }
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "sql",
+                        "operationId": "executeQuery",
+                        "serviceProviderId": "/serviceProviders/sql"
+                    }
+                },
+                "runAfter": {
+                    "Parse_Message": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ServiceProvider"
+            },
+            "Parse_Message": {
+                "inputs": {
+                    "content": "@base64ToString(triggerBody()?['ContentData'])",
+                    "schema": {
+                        "properties": {
+                            "EDIIntegrationId": {
+                                "type": "integer"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {},
+                "type": "ParseJson"
+            },
+            "Transform_XML_to_KSeF": {
+                "inputs": {
+                    "content": "@body('Get_Canonical_XML')?['resultSets'][0][0]['CanonicalXML']",
+                    "integrationAccount": {
+                        "map": {
+                            "name": "KsefFa3"
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Get_Canonical_XML": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Xslt"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_message_arrives_in_topic": {
+                "inputs": {
+                    "parameters": {
+                        "subscriptionName": "logic-app-transform",
+                        "topicName": "invoice-ready-for-transformation"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "serviceBus",
+                        "operationId": "receiveTopicMessages",
+                        "serviceProviderId": "/serviceProviders/serviceBus"
+                    }
+                },
+                "type": "ServiceProvider"
+            }
+        }
+    },
+    "kind": "Stateful"
+}

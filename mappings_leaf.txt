@@ -1,0 +1,31 @@
+
+--- Sheet: MAP_Header ---
+
+--- Sheet: MAP_Entities ---
+PrefiksPodatnika [Facultative] -> Value of PL
+NrEORI [Facultative] -> seller.EORI
+DaneIdentyfikacyjne [Obligatory] -> Seller.identity
+Adres [Obligatory] -> Seller.address
+AdresKoresp [Facultative] -> seller.correspondenceAddress
+DaneKontaktowe [Facultative] -> Seller.contact
+NrEORI [Facultative] -> buyer.EORI
+DaneIdentyfikacyjne [Obligatory] -> Buyer.identity
+Adres [Facultative] -> Buyer.address
+AdresKoresp [Facultative] -> buyer.correspondenceAddress
+DaneKontaktowe [Facultative] -> Buyer.contact
+NrKlienta [Facultative] -> buyer.customerId
+IDNabywcy [Facultative] -> *The IDNywcy field will be handled in the next edition
+NrEORI [Facultative] -> thirdParties. *. EORI
+DaneIdentyfikacyjne [Obligatory] -> thirdParties. *.Identity
+Adres [Obligatory] -> thirdParties. *.Address
+AdresKoresp [Facultative] -> thirdParties. *.correspondenceAddress
+DaneKontaktowe [Facultative] -> thirdParties. *.Contact
+Rola [Obligatory] -> thirdParties. *
+Udzial [Facultative] -> thirdParties.additionalBuyers.percentageShare
+NrKlienta [Facultative] -> thirdParties.additionalBuyers.customerId
+NrEORI [Facultative] -> Empowered Party.EORI
+DaneIdentyfikacyjne [Obligatory] -> Empowered Party.identity
+Adres [Obligatory] -> Empowered Party.address
+AdresKoresp [Facultative] -> empoweredParty.correspondenceAddress
+DaneKontaktowe [Facultative] -> empoweredParty.contact
+RolaPU [Obligatory] -> empoweredParty.role

@@ -59,3 +59,20 @@ tags = {
   CostCenter  = "IT"
   Owner       = "DataTeam"
 }
+
+# ============================================================================
+# PHASE 3 & 4 CONFIGURATION
+# ============================================================================
+
+# Service Bus
+service_bus_sku = "Standard"  # Standard required for topics; Basic only supports queues
+
+# KSeF API (Phase 4 - SubmitToPartner)
+# Test environment: https://ksef-test.mf.gov.pl/api/online/Invoice/Send
+# Production:       https://ksef.mf.gov.pl/api/online/Invoice/Send
+ksef_api_url = "https://ksef-test.mf.gov.pl/api/online/Invoice/Send"
+ksef_api_key = "CHANGE_ME_KSeF_API_Key"  # Replace with your actual KSeF API key
+
+# SubmitToPartner function schedule (every 5 minutes)
+submit_timer_schedule = "0 */5 * * * *"
+submit_batch_size     = 10

@@ -97,3 +97,42 @@ variable "tags" {
     Project   = "XML-FA3-Integration"
   }
 }
+
+# ============================================================================
+# PHASE 3 & 4 VARIABLES
+# ============================================================================
+
+variable "service_bus_sku" {
+  description = "Service Bus namespace SKU (Basic, Standard, Premium)"
+  type        = string
+  default     = "Standard"
+  validation {
+    condition     = contains(["Basic", "Standard", "Premium"], var.service_bus_sku)
+    error_message = "Service Bus SKU must be Basic, Standard, or Premium."
+  }
+}
+
+variable "ksef_api_url" {
+  description = "KSeF Partner API endpoint URL for invoice submission"
+  type        = string
+  default     = "https://ksef-test.mf.gov.pl/api/online/Invoice/Send"
+}
+
+variable "ksef_api_key" {
+  description = "KSeF Partner API key / Bearer token"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "submit_timer_schedule" {
+  description = "NCRONTAB schedule for SubmitToPartner function (default: every 5 mins)"
+  type        = string
+  default     = "0 */5 * * * *"
+}
+
+variable "submit_batch_size" {
+  description = "Max number of KSeF submissions to process per function run"
+  type        = number
+  default     = 10
+}

@@ -1,0 +1,34 @@
+
+--- Sheet: MAP_Header ---
+WariantFormularza -> Field replenished automatically by the SmartKSeF system
+DataWytworzeniaFa -> Field replenished automatically by the SmartKSeF system
+SystemInfo -> Field replenished automatically by the SmartKSeF system
+
+--- Sheet: MAP_Entities ---
+PrefiksPodatnika -> Value of PL
+NrEORI -> seller.EORI
+DaneIdentyfikacyjne -> Seller.identity
+Adres -> Seller.address
+AdresKoresp -> seller.correspondenceAddress
+DaneKontaktowe -> Seller.contact
+NrEORI -> buyer.EORI
+DaneIdentyfikacyjne -> Buyer.identity
+Adres -> Buyer.address
+AdresKoresp -> buyer.correspondenceAddress
+DaneKontaktowe -> Buyer.contact
+NrKlienta -> buyer.customerId
+IDNabywcy -> *The IDNywcy field will be handled in the next edition
+NrEORI -> thirdParties. *. EORI
+DaneIdentyfikacyjne -> thirdParties. *.Identity
+Adres -> thirdParties. *.Address
+AdresKoresp -> thirdParties. *.correspondenceAddress
+DaneKontaktowe -> thirdParties. *.Contact
+Rola -> thirdParties. *
+Udzial -> thirdParties.additionalBuyers.percentageShare
+NrKlienta -> thirdParties.additionalBuyers.customerId
+NrEORI -> Empowered Party.EORI
+DaneIdentyfikacyjne -> Empowered Party.identity
+Adres -> Empowered Party.address
+AdresKoresp -> empoweredParty.correspondenceAddress
+DaneKontaktowe -> empoweredParty.contact
+RolaPU -> empoweredParty.role

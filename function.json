@@ -84,7 +84,7 @@
                     "Validate_XML": {
                         "type": "XmlValidation",
                         "inputs": {
-                            "content": "@body('Transform_XML')",
+                            "content": "@xml(substring(base64ToString(body('Transform_XML')?['$content']),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML')?['$content'])),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'))))",
                             "schema": {
                                 "source": "LogicApp",
                                 "name": "FA(3)_schemat.xsd"

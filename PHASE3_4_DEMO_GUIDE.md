@@ -14,14 +14,14 @@
 
 | Phase | Component | What it does |
 |-------|-----------|-------------|
-| 3 | Logic App Standard | Picks up message from Service Bus topic → fetches Canonical XML from DB → transforms via XSLT → saves KSeF XML |
-| 4 | Azure Function (SubmitToPartner) | Reads KSeF XML from DB → POSTs to KSeF API → updates status to Success/Failed |
+| 3 | Logic App Standard | Picks up message from Service Bus topic → fetches Canonical XML from DB → transforms via XSLT map → saves KSeF XML |
+| 4 | Logic App (SubmitToPartner) | Reads KSeF XML from DB → fetches OAuth Token → POSTs to SmartKSeF API → updates status to Success/Failed |
 
 **Estimated time**: 30–40 minutes
 
 ---
 
-## Phase 3: Logic App (XSLT Transformation)
+## Phase 3: Logic App (XSLT XML Transformation)
 
 ### Step 3.1 — Create a Storage Account for Logic App
 
@@ -74,7 +74,7 @@ This is the compute that runs the Logic App.
 
 ### Step 3.4 — Add the XSLT Map
 
-The Logic App needs the XSLT file to transform Canonical XML → KSeF format.
+The Logic App needs the XSLT file to transform Canonical XML → KSeF FA(3) XML format.
 
 1. In your Logic App, click **"Artifacts"** in the left menu (under Development Tools)
 2. Click **"Maps"**
@@ -160,7 +160,7 @@ The Logic App needs the XSLT file to transform Canonical XML → KSeF format.
 24. Fill in:
     - **Procedure name**: `[dbo].[usp_InsertPartnerSubmission]`
     - **EDIIntegrationId**: (Dynamic content → EDIIntegrationId from trigger)
-    - **KSeFXml**: (Dynamic content → Transformed XML output)
+    - **PartnerXML**: (Dynamic content → Transformed XML output)
 
 #### Complete the Service Bus Message
 
@@ -192,67 +192,154 @@ The Logic App needs the XSLT file to transform Canonical XML → KSeF format.
 
 ---
 
-## Phase 4: SubmitToPartner Function
+## Phase 4: SubmitToPartner Logic App
 
-### Step 4.1 — Create the Function App
+### Step 4.1 — Create the `SubmitToPartner` Workflow
 
-> **Note**: If you already have a Function App from Phases 1 & 2, you can add the new function to it and skip to Step 4.3.
+Since we are replacing the Function App with a Logic App for Phase 4, we will add a new workflow to the existing Logic App created in Phase 3.
 
-1. Search for **"Function App"** → click it
-2. Click **"+ Create"**
-3. Fill in:
-   - **Resource group**: Your resource group
-   - **Function App name**: `xmlintegration-demo-func`
-   - **Runtime stack**: Python
-   - **Version**: 3.11
-   - **Region**: Same as before
-   - **Operating System**: Linux
-   - **Plan type**: Consumption (Serverless)
-4. Click **"Review + create"** → **"Create"**
-
----
-
-### Step 4.2 — Configure Application Settings
-
-1. Go to your Function App → **"Configuration"** (under Settings)
-2. Click **"+ New application setting"** for each of these:
-
-   | Name | Value |
-   |------|-------|
-   | `SQL_CONNECTION_STRING` | `Server=tcp:YOUR_SERVER.database.windows.net,1433;Initial Catalog=YOUR_DB;User ID=sqladmin;Password=YOUR_PASSWORD;Encrypt=True;` |
-   | `KSEF_API_URL` | `https://ksef-test.mf.gov.pl/api/online/Invoice/Send` |
-   | `KSEF_API_KEY` | Your KSeF API key (or leave empty for demo) |
-   | `SUBMIT_TIMER_SCHEDULE` | `0 */5 * * * *` (every 5 minutes) |
-   | `SUBMIT_BATCH_SIZE` | `10` |
-
-3. Click **"Save"** → **"Continue"**
-
----
-
-### Step 4.3 — Deploy the Function Code
-
-#### Option A: Using VS Code (Recommended for demo)
-
-1. Install the **Azure Functions** extension in VS Code
-2. Open the `function-app/` folder
-3. Press **F1** → type **"Azure Functions: Deploy to Function App"**
-4. Select your Function App → click **"Deploy"**
-
-#### Option B: Using Azure Portal (Quick demo)
-
-1. In your Function App, click **"Functions"** → **"+ Create"**
-2. Select **"Timer trigger"**
-3. Fill in:
+1. Go to your Logic App `xmlintegration-demo-la`
+2. Click **"Workflows"** in the left menu
+3. Click **"+ Add"**
+4. Fill in:
    - **Name**: `SubmitToPartner`
-   - **Schedule**: `0 */5 * * * *`
-4. Click **"Create"**
-5. Click **"Code + Test"**
-6. Replace the code with the contents of `function-app/SubmitToPartner/__init__.py`
-7. Click **"Save"**
+   - **State type**: Stateful
+5. Click **"Create"**
+6. Click on the workflow name to open it
+7. Click **"Designer"** in the left menu
+
+### Step 4.2 — Add the Service Bus Queue Trigger
+
+1. In the designer, click **"Add a trigger"**
+2. Search for **"Service Bus"** → select **"When one or more messages arrive in a queue (auto-complete)"**
+3. Configure the trigger:
+   - **Queue name**: `invoice-ready-for-submission`
+
+### Step 4.3 — Add Parse JSON Action
+
+1. Click **"+"** below the trigger → **"Add an action"**
+2. Search for **"Data Operations"** → select **"Parse JSON"**
+3. Configure the action:
+   - **Content**: `triggerBody()?['ContentData']` (Needs to be parsed from Base64 via expression: `@base64ToString(triggerBody()?['ContentData'])`)
+   - **Schema**:
+     ```json
+     {
+         "type": "object",
+         "properties": {
+             "PartnerSubmissionId": { "type": "integer" }
+         }
+     }
+     ```
+
+### Step 4.4 — Add SQL Action — Get Partner XML
+
+1. Click **"+"** below the Parse JSON action → **"Add an action"**
+2. Search for **"SQL Server"** → select **"Execute a SQL query (V2)"**
+3. Select the `<SqlConnection>` we created in Phase 3
+4. In the **Query** field, paste:
+   ```sql
+   SELECT PartnerSubmissionId, PartnerXML FROM [dbo].[PartnerSubmission] WHERE PartnerSubmissionId = @PartnerSubmissionId
+   ```
+5. In the **Query Parameters**, configure:
+   - Name: `PartnerSubmissionId`
+   - Value: Dynamic content `PartnerSubmissionId` from the Parse JSON step.
+
+### Step 4.5 — Configure App Settings for OAuth
+
+Before adding the HTTP actions, add your SmartKSeF API credentials to your Logic App.
+1. Go to your Logic App → **Environment Variables** (or **Configuration** depending on portal version)
+2. Add the following app settings:
+   - `SMARTKSEF_CLIENT_ID`: Your Client ID
+   - `SMARTKSEF_CLIENT_SECRET`: Your Client Secret
+
+### Step 4.6 — Add OAuth2 HTTP Action
+
+1. Before the **For each** loop, click **"+"** → **"Add an action"**
+2. Search for **"HTTP"** → select **"HTTP"**
+3. Rename the action to `Get_OAuth_Token`
+4. Configure the HTTP action:
+   - **Method**: `POST`
+   - **URI**: `https://login.smartksef-staging.exorigo-upos.pl/d92dfc98-2b80-4938-97f5-d4bee2112678/oauth2/v2.0/token?p=B2C_1_susi_default`
+   - **Headers**:
+     - `Content-Type`: `application/x-www-form-urlencoded`
+   - **Body**: `grant_type=client_credentials&client_id=@{appsetting('SMARTKSEF_CLIENT_ID')}&client_secret=@{appsetting('SMARTKSEF_CLIENT_SECRET')}&scope=https://login.smartksef-staging.exorigo-upos.pl/api/invoices/.default`
+
+### Step 4.7 — Add Parse JSON Action
+
+1. Below `Get_OAuth_Token`, add a **Parse JSON** action.
+2. Rename it to `Parse_OAuth_Token`.
+3. **Content**: Select **Body** from `Get_OAuth_Token` step in dynamic content.
+4. **Schema**: Use the following schema:
+   ```json
+   {
+       "type": "object",
+       "properties": {
+           "access_token": { "type": "string" },
+           "token_type": { "type": "string" },
+           "expires_in": { "type": "integer" }
+       }
+   }
+   ```
+
+### Step 4.8 — Add HTTP POST to SmartKSeF API
+
+1. Below `Parse_OAuth_Token`, click **"+"** → **"Add an action"**
+2. Search for **"HTTP"** → select **"HTTP"**
+3. Rename the action to `POST_to_KSeF_API`
+4. Configure the HTTP action:
+   - **Method**: `POST`
+   - **URI**: `https://api.smartksef-staging.exorigo-upos.pl/invoices`
+   - **Headers**:
+     - `Content-Type`: `application/x.ksef.invoice+xml`
+     - `Accept`: `application/json`
+     - `Authorization`: `Bearer @{body('Parse_OAuth_Token')?['access_token']}`
+   - **Body**: Expression pointing to the PartnerXML from the SQL query step:
+     ```
+     body('Execute_a_SQL_query_(V2)')?['resultSets']?[0]?[0]?['PartnerXML']
+     ```
+
+### Step 4.9 — Add Condition for Success/Failure
+
+1. Below the HTTP action, click **"+"** → **"Add an action"**
+2. Search for **"Control"** → select **"Condition"**
+3. Configure Condition:
+   - First box (Expression): `outputs('POST_to_KSeF_API')['statusCode']`
+   - Operator: `is greater than or equal to`
+   - Second box: `200`
+   - Click **Add** -> **Add row** (AND)
+   - First box (Expression): `outputs('POST_to_KSeF_API')['statusCode']`
+   - Operator: `is less than`
+   - Second box: `300`
+
+### Step 4.10 — True Branch (Success) — Update SQL
+
+1. In the **True** branch, click **"Add an action"**
+2. Select **"Execute a SQL query (V2)"**
+3. **Query**:
+   ```sql
+   EXEC [dbo].[usp_UpdatePartnerSubmissionStatus] @PartnerSubmissionId = @Id, @Status = 2, @KSeFReferenceNumber = @Ref
+   ```
+4. **Query Parameters**:
+   - `Id`: Expression `body('Parse_JSON')?['PartnerSubmissionId']`
+   - `Ref`: Expression `coalesce(body('POST_to_KSeF_API')?['referenceNumber'], body('POST_to_KSeF_API')?['ReferenceNumber'], 'REF-LOGICAPP')`
+
+### Step 4.11 — False Branch (Failed) — Update SQL
+
+1. In the **False** branch, click **"Add an action"**
+2. Select **"Execute a SQL query (V2)"**
+3. **Query**:
+   ```sql
+   EXEC [dbo].[usp_UpdatePartnerSubmissionStatus] @PartnerSubmissionId = @Id, @Status = 3, @ErrorMessage = @Err
+   ```
+4. **Query Parameters**:
+   - `Id`: Expression `body('Parse_JSON')?['PartnerSubmissionId']`
+   - `Err`: Expression `substring(string(body('POST_to_KSeF_API')), 0, 500)`
+
+5. Click **"Save"**
 
 ---
 
-### Step 4.4 — Run the SQL Scripts
+### Step 4.12 — Run the SQL Scripts
 
 Before testing, create the stored procedures in your database.
 
@@ -264,24 +351,18 @@ Before testing, create the stored procedures in your database.
 
 ---
 
-### Step 4.5 — Test Phase 4
+### Step 4.13 — Test Phase 4
 
 #### Manual trigger for demo
 
-1. Go to your Function App → **"Functions"** → click **"SubmitToPartner"**
-2. Click **"Code + Test"**
-3. Click **"Test/Run"** at the top
-4. Click **"Run"**
-5. Watch the **Logs** panel at the bottom
+1. Go to your Logic App → **"Workflows"** → click **"SubmitToPartner"**
+2. Click **"Overview"**
+3. Click **"Run Trigger"** at the top
+4. Wait a few seconds, then view the **Run History**
 
 #### What to show the team
 
-- **Logs panel**: Shows each submission being processed
-  ```
-  Found 1 pending submission(s) to process.
-  Processing PartnerSubmissionId=1 (EDIIntegrationId=1)
-  SUCCESS: PartnerSubmissionId=1 | KSeF Ref=REF-20260218...
-  ```
+- **Run History**: Shows each action's inputs and outputs. Check the `For each` loop to see it iterate over submitted entries.
 - **SQL verification**: Run this query in Query Editor:
   ```sql
   SELECT
@@ -311,12 +392,12 @@ For a complete demo showing both phases:
    → XSLT transformation applied
    → KSeF XML saved to PartnerSubmission (Status=1)
 
-2. Manually trigger SubmitToPartner function (Step 4.5)
-   → Picks up Status=1 row
-   → Calls KSeF API
+2. Phase 4 listens to the `invoice-ready-for-submission` Service Bus Queue.
+   → Picks up the message containing the ID.
+   → Fetches the XML by ID.
+   → Calls KSeF API via HTTP action
    → Updates to Status=2 (success) or Status=3 (failed)
-   → KSeF reference number saved
-```
+   → Completes Service Bus Message.
 
 ---
 
@@ -328,7 +409,7 @@ For a complete demo showing both phases:
 | Logic App run fails at Transform step | Verify `KsefFa3.xslt` was uploaded correctly in Artifacts → Maps |
 | No messages received by Logic App | Check Service Bus subscription name matches exactly: `logic-app-transform` |
 | Function shows "No pending submissions" | Ensure Phase 3 ran first and created a row in `PartnerSubmission` with `Status=1` |
-| KSeF API returns 401 | Check `KSEF_API_KEY` in Function App configuration |
+| HTTP action returns 401 | Check Authorization header in HTTP action |
 | KSeF API returns 400 | The XSLT output doesn't match KSeF schema — update `KsefFa3.xslt` field mappings |
 
 ---
@@ -337,9 +418,8 @@ For a complete demo showing both phases:
 
 | Resource | Cost |
 |----------|------|
-| Logic App Standard WS1 | ~$1.50/day |
+| Logic App Standard WS1 | ~$1.50/day (handles Phase 3 & 4) |
 | Service Bus Standard | ~$0.01/day |
-| Function App (Consumption) | Free for demo volume |
 | **Total** | **~$1.50/day** — remember to delete after demo! |
 
 ### Clean Up After Demo

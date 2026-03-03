@@ -23,7 +23,14 @@
                     <!-- Formatting: appending T00:00:00Z if missing -->
                     <xsl:value-of select="/CanonicalInvoice/Header/IssueDate"/>T00:00:00Z
                 </DataWytworzeniaFa>
-                <SystemInfo>ITAAG002eLIMS-BPT_EUPL007</SystemInfo>
+                <xsl:choose>
+                    <xsl:when test="normalize-space(/CanonicalInvoice/Header/SystemInfo) != ''">
+                        <SystemInfo><xsl:value-of select="/CanonicalInvoice/Header/SystemInfo"/></SystemInfo>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <SystemInfo>Standard_Integration_System</SystemInfo>
+                    </xsl:otherwise>
+                </xsl:choose>
             </Naglowek>
 
             <!-- SELLER (Podmiot1) -->
@@ -101,8 +108,20 @@
                 <xsl:if test="normalize-space(/CanonicalInvoice/Header/DueDate) != ''">
                     <Platnosc>
                         <TerminPlatnosci><xsl:value-of select="normalize-space(/CanonicalInvoice/Header/DueDate)"/></TerminPlatnosci>
-                        <FormaPlatnosci>1</FormaPlatnosci>
-                        <!-- Leaving RachunekBankowy blank dynamically, map if needed from Canonical XML later -->
+                        <xsl:choose>
+                            <xsl:when test="normalize-space(/CanonicalInvoice/Header/PaymentMethod) != ''">
+                                <FormaPlatnosci><xsl:value-of select="normalize-space(/CanonicalInvoice/Header/PaymentMethod)"/></FormaPlatnosci>
+                            </xsl:when>
+                            <xsl:otherwise>
+                                <FormaPlatnosci>1</FormaPlatnosci>
+                            </xsl:otherwise>
+                        </xsl:choose>
+                        
+                        <xsl:if test="normalize-space(/CanonicalInvoice/Header/BankAccount) != ''">
+                            <RachunekBankowy>
+                                <NrRB><xsl:value-of select="normalize-space(/CanonicalInvoice/Header/BankAccount)"/></NrRB>
+                            </RachunekBankowy>
+                        </xsl:if>
                     </Platnosc>
                 </xsl:if>
 
@@ -123,25 +142,41 @@
                         <xsl:if test="normalize-space(UnitPrice) != ''">
                             <P_9A><xsl:value-of select="normalize-space(UnitPrice)"/></P_9A>
                         </xsl:if>
-                        <P_10>0.00</P_10> <!-- Hardcoded based on provided user example -->
+                        <xsl:if test="normalize-space(DiscountAmount) != ''">
+                            <P_10><xsl:value-of select="normalize-space(DiscountAmount)"/></P_10>
+                        </xsl:if>
                         <P_11><xsl:value-of select="NetAmount"/></P_11>
-                        <P_12><xsl:choose>
-                            <xsl:when test="Tax/Rate != ''"><xsl:value-of select="Tax/Rate"/></xsl:when>
-                            <xsl:otherwise>23</xsl:otherwise>
-                        </xsl:choose></P_12>
+                        <xsl:if test="normalize-space(Tax/Rate) != ''">
+                            <P_12><xsl:value-of select="normalize-space(Tax/Rate)"/></P_12>
+                        </xsl:if>
                     </FaWiersz>
                 </xsl:for-each>
 
                 <!-- SUMMARY (Rozliczenie) -->
                 <xsl:if test="/CanonicalInvoice/Summary">
                     <Rozliczenie>
-                        <StawkiPodatku>
-                            <StawkaPodatku>
-                                <KodStawki>23</KodStawki> <!-- Mapped strictly as integer representations from sample -->
-                                <PodstawaOpodatkowania><xsl:value-of select="/CanonicalInvoice/Summary/TotalNetAmount"/></PodstawaOpodatkowania>
-                                <KwotaPodatku><xsl:value-of select="/CanonicalInvoice/Summary/TotalTaxAmount"/></KwotaPodatku>
-                            </StawkaPodatku>
-                        </StawkiPodatku>
+                        <xsl:choose>
+                            <xsl:when test="/CanonicalInvoice/Summary/Taxes/Tax">
+                                <StawkiPodatku>
+                                    <xsl:for-each select="/CanonicalInvoice/Summary/Taxes/Tax">
+                                        <StawkaPodatku>
+                                            <KodStawki><xsl:value-of select="Rate"/></KodStawki>
+                                            <PodstawaOpodatkowania><xsl:value-of select="NetAmount"/></PodstawaOpodatkowania>
+                                            <KwotaPodatku><xsl:value-of select="TaxAmount"/></KwotaPodatku>
+                                        </StawkaPodatku>
+                                    </xsl:for-each>
+                                </StawkiPodatku>
+                            </xsl:when>
+                            <xsl:otherwise>
+                                <StawkiPodatku>
+                                    <StawkaPodatku>
+                                        <KodStawki>23</KodStawki> <!-- Fallback for incomplete Canonical model -->
+                                        <PodstawaOpodatkowania><xsl:value-of select="/CanonicalInvoice/Summary/TotalNetAmount"/></PodstawaOpodatkowania>
+                                        <KwotaPodatku><xsl:value-of select="/CanonicalInvoice/Summary/TotalTaxAmount"/></KwotaPodatku>
+                                    </StawkaPodatku>
+                                </StawkiPodatku>
+                            </xsl:otherwise>
+                        </xsl:choose>
                         <KwotaPodatkuNaleznego><xsl:value-of select="/CanonicalInvoice/Summary/TotalTaxAmount"/></KwotaPodatkuNaleznego>
                         <KwotaDoZaplaty><xsl:value-of select="/CanonicalInvoice/Summary/TotalGrossAmount"/></KwotaDoZaplaty>
                     </Rozliczenie>

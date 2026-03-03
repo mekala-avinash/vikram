@@ -1,0 +1,209 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Parse_Message": {
+                "inputs": {
+                    "content": "@base64ToString(triggerBody()?['ContentData'])",
+                    "schema": {
+                        "properties": {
+                            "PartnerSubmissionId": {
+                                "type": "integer"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {},
+                "type": "ParseJson"
+            },
+            "Get_Partner_XML": {
+                "inputs": {
+                    "parameters": {
+                        "query": "SELECT PartnerSubmissionId, PartnerXML FROM [dbo].[PartnerSubmission] WHERE PartnerSubmissionId = @PartnerSubmissionId",
+                        "queryParameters": {
+                            "PartnerSubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']"
+                        }
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "sql",
+                        "operationId": "executeQuery",
+                        "serviceProviderId": "/serviceProviders/sql"
+                    }
+                },
+                "runAfter": {
+                    "Parse_Message": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ServiceProvider"
+            },
+            "Get_OAuth_Token": {
+                "inputs": {
+                    "body": "grant_type=client_credentials&client_id=@{appsetting('SMARTKSEF_CLIENT_ID')}&client_secret=@{appsetting('SMARTKSEF_CLIENT_SECRET')}&scope=https://login.smartksef-staging.exorigo-upos.pl/api/invoices/.default",
+                    "headers": {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    "method": "POST",
+                    "uri": "https://login.smartksef-staging.exorigo-upos.pl/d92dfc98-2b80-4938-97f5-d4bee2112678/oauth2/v2.0/token?p=B2C_1_susi_default"
+                },
+                "runAfter": {
+                    "Get_Partner_XML": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Http"
+            },
+            "Parse_OAuth_Token": {
+                "inputs": {
+                    "content": "@body('Get_OAuth_Token')",
+                    "schema": {
+                        "properties": {
+                            "access_token": {
+                                "type": "string"
+                            },
+                            "token_type": {
+                                "type": "string"
+                            },
+                            "expires_in": {
+                                "type": "integer"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {
+                    "Get_OAuth_Token": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ParseJson"
+            },
+            "POST_to_KSeF_API": {
+                "inputs": {
+                    "body": "@body('Get_Partner_XML')?['resultSets'][0][0]['PartnerXML']",
+                    "headers": {
+                        "Accept": "application/json",
+                        "Authorization": "Bearer @{body('Parse_OAuth_Token')?['access_token']}",
+                        "Content-Type": "application/x.ksef.invoice+xml"
+                    },
+                    "method": "POST",
+                    "uri": "https://api.smartksef-staging.exorigo-upos.pl/invoices"
+                },
+                "runAfter": {
+                    "Parse_OAuth_Token": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Http"
+            },
+            "Check_HTTP_Status": {
+                "actions": {
+                    "Execute_usp_UpdatePartnerSubmissionStatus_Success": {
+                        "inputs": {
+                            "parameters": {
+                                "query": "EXEC [dbo].[usp_UpdatePartnerSubmissionStatus] @PartnerSubmissionId = @PartnerSubmissionId, @Status = 2, @KSeFReferenceNumber = @KSeFReferenceNumber",
+                                "queryParameters": {
+                                    "KSeFReferenceNumber": "@body('POST_to_KSeF_API')?['referenceNumber']",
+                                    "PartnerSubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']"
+                                }
+                            },
+                            "serviceProviderConfiguration": {
+                                "connectionName": "sql",
+                                "operationId": "executeQuery",
+                                "serviceProviderId": "/serviceProviders/sql"
+                            }
+                        },
+                        "runAfter": {},
+                        "type": "ServiceProvider"
+                    }
+                },
+                "else": {
+                    "actions": {
+                        "Execute_usp_UpdatePartnerSubmissionStatus_Failed": {
+                            "inputs": {
+                                "parameters": {
+                                    "query": "EXEC [dbo].[usp_UpdatePartnerSubmissionStatus] @PartnerSubmissionId = @PartnerSubmissionId, @Status = 3, @ErrorMessage = @ErrorMessage",
+                                    "queryParameters": {
+                                        "ErrorMessage": "@substring(string(body('POST_to_KSeF_API')), 0, 500)",
+                                        "PartnerSubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']"
+                                    }
+                                },
+                                "serviceProviderConfiguration": {
+                                    "connectionName": "sql",
+                                    "operationId": "executeQuery",
+                                    "serviceProviderId": "/serviceProviders/sql"
+                                }
+                            },
+                            "runAfter": {},
+                            "type": "ServiceProvider"
+                        }
+                    }
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "greaterOrEquals": [
+                                "@outputs('POST_to_KSeF_API')['statusCode']",
+                                200
+                            ]
+                        },
+                        {
+                            "less": [
+                                "@outputs('POST_to_KSeF_API')['statusCode']",
+                                300
+                            ]
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "POST_to_KSeF_API": [
+                        "Succeeded",
+                        "Failed",
+                        "TimedOut"
+                    ]
+                },
+                "type": "If"
+            },
+            "Complete_Service_Bus_Message": {
+                "inputs": {
+                    "parameters": {
+                        "lockToken": "@triggerBody()?['LockToken']",
+                        "queueName": "invoice-to-process",
+                        "sessionId": "@triggerBody()?['SessionId']"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "serviceBus",
+                        "operationId": "completeMessage",
+                        "serviceProviderId": "/serviceProviders/serviceBus"
+                    }
+                },
+                "runAfter": {
+                    "Check_HTTP_Status": [
+                        "Succeeded",
+                        "Failed"
+                    ]
+                },
+                "type": "ServiceProvider"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_message_arrives_in_queue": {
+                "inputs": {
+                    "parameters": {
+                        "queueName": "invoice-to-process"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "serviceBus",
+                        "operationId": "receiveQueueMessages",
+                        "serviceProviderId": "/serviceProviders/serviceBus"
+                    }
+                },
+                "type": "ServiceProvider"
+            }
+        }
+    },
+    "kind": "Stateful"
+}

@@ -17,7 +17,7 @@
                     }
                 },
                 "runAfter": {
-                    "Execute_usp_InsertPartnerSubmission": [
+                    "Send_Message_to_Phase_4": [
                         "Succeeded"
                     ]
                 },
@@ -68,6 +68,27 @@
                 },
                 "runAfter": {
                     "Transform_XML_to_KSeF": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ServiceProvider"
+            },
+            "Send_Message_to_Phase_4": {
+                "inputs": {
+                    "parameters": {
+                        "message": {
+                            "contentData": "@{base64(string(json(concat('{\"PartnerSubmissionId\": ', body('Execute_usp_InsertPartnerSubmission')?['resultSets'][0][0]['PartnerSubmissionId'], '}'))))}"
+                        },
+                        "queueName": "invoice-to-process"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "serviceBus",
+                        "operationId": "sendMessage",
+                        "serviceProviderId": "/serviceProviders/serviceBus"
+                    }
+                },
+                "runAfter": {
+                    "Execute_usp_InsertPartnerSubmission": [
                         "Succeeded"
                     ]
                 },

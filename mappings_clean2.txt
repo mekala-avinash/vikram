@@ -1,7 +1,0 @@
-
---- Sheet: MAP_Header ---
-FormVariant -> No need to transfer data to SmartKSeF
-CreationDate -> No need to transfer data to SmartKSeF
-SystemInfo -> No need to transfer data to SmartKSeF
-
---- Sheet: MAP_Entities ---

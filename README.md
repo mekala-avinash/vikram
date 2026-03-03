@@ -8,8 +8,10 @@ Complete Terraform configuration for Azure infrastructure that processes XML dat
 graph TB
     subgraph "Azure Infrastructure"
         SQL[Azure SQL Database<br/>Canonical XML Data]
-        FA[Function App<br/>Timer: Every 1hr]
+        LA3[Logic App 3<br/>Service Bus Trigger]
+        LA4[Logic App 4<br/>Timer: Every 5min]
         ST[Storage Account<br/>FA3 Data + Logs]
+        SB[Service Bus<br/>Messaging]
         KV[Key Vault<br/>Secrets]
         AI[Application Insights<br/>Monitoring]
         MI[Managed Identity<br/>Authentication]
@@ -20,12 +22,14 @@ graph TB
         API[Vendor API]
     end
     
-    SQL -->|Read XML| FA
-    FA -->|Transform XSLT| FA
-    FA -->|Save FA3| ST
-    ST -->|Read FA3| FA
-    FA -->|POST| API
-    API -->|Acknowledgment| FA
+    SQL -->|Read XML| LA3
+    SB -->|Trigger| LA3
+    LA3 -->|Transform XSLT| LA3
+    LA3 -->|Save FA3| SQL
+    SQL -->|Read FA3| LA4
+    LA4 -->|POST| API
+    API -->|Acknowledgment| LA4
+    LA4 -->|Update Status| SQL
     FA -->|Log| ST
     FA -->|Telemetry| AI
     KV -->|Secrets| FA
@@ -36,11 +40,11 @@ graph TB
 
 ## Features
 
-- ✅ **Automated Processing**: Timer-triggered Function App runs every hour
+- ✅ **Automated Processing**: Phase 3 and Phase 4 Logic Apps handle transformation and submission
 - ✅ **Secure**: Managed Identity, Key Vault for secrets, VNet integration
-- ✅ **Scalable**: Azure Functions consumption plan
+- ✅ **Scalable**: Azure Logic Apps (Standard/Consumption)
 - ✅ **Monitored**: Application Insights for logging and telemetry
-- ✅ **Reliable**: Blob storage for FA(3) data persistence and acknowledgments
+- ✅ **Reliable**: SQL database for tracking states (1: Ready, 2: Success, 3: Failed)
 - ✅ **Infrastructure as Code**: Complete Terraform configuration using Azure Verified Modules
 
 ## Prerequisites
@@ -61,13 +65,13 @@ azure-xml-integration/
 │   ├── outputs.tf         # Output values
 │   ├── providers.tf       # Provider configuration
 │   └── locals.tf          # Local values
-├── function-app/          # Azure Function App code
-│   ├── host.json          # Function host configuration
-│   ├── requirements.txt   # Python dependencies
-│   └── XmlProcessor/      # Timer-triggered function
-│       ├── __init__.py    # Main function code
-│       ├── function.json  # Function bindings
-│       └── transform.xslt # XSLT transformation template
+├── logic-app/           # Azure Logic App flows
+│   ├── maps/            # XSLT transformation components
+│   │   └── KsefFa3.xslt # XSLT transformation template
+│   ├── TransformToKsefXml/ # Service Bus triggered phase 3
+│   │   └── workflow.json
+│   └── SubmitToPartner/   # Timer-triggered phase 4
+│       └── workflow.json
 ├── scripts/               # Utility scripts
 │   └── download-modules.sh # Download Azure Verified Modules
 └── modules/               # Local Azure Verified Modules (created by script)
@@ -144,20 +148,11 @@ terraform apply
 
 Type `yes` when prompted to confirm deployment.
 
-### 6. Deploy Function App Code
+### 6. Deploy Logic App Workflows
 
-After infrastructure is deployed, deploy the Function App code:
+After infrastructure is deployed, deploy the Logic App workflows:
 
-```bash
-# Get Function App name from Terraform output
-FUNCTION_APP_NAME=$(terraform output -raw function_app_name)
-
-# Deploy using Azure Functions Core Tools
-cd ../function-app
-func azure functionapp publish $FUNCTION_APP_NAME
-```
-
-Alternatively, use Azure DevOps, GitHub Actions, or Azure Portal for deployment.
+For VS Code: Use the Azure Logic Apps extension to deploy `TransformToKsefXml` and `SubmitToPartner` folders to your Standard Logic App.
 
 ## Configuration
 

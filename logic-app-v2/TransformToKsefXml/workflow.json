@@ -80,10 +80,10 @@
                         "type": "ServiceProvider",
                         "inputs": {
                             "parameters": {
-                                "query": "EXEC [dbo].[usp_InsertPartnerSubmission] @EDIIntegrationId = @EDIIntegrationId, @PartnerXML = @PartnerXML",
+                                "query": "EXEC [EDI].[InsertPartnerXml] @CanonicalId = @CanonicalId, @PartnerXml = @PartnerXml",
                                 "queryParameters": {
-                                    "EDIIntegrationId": "@body('Parse_CanonicalId')?['CanonicalId']",
-                                    "PartnerXML": "@string(xml(substring(base64ToString(body('Transform_XML')?['$content']),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML')?['$content'])),indexOf(base64ToString(body('Transform_XML')?['$content']), '<')))))"
+                                    "CanonicalId": "@body('Parse_CanonicalId')?['CanonicalId']",
+                                    "PartnerXml": "@string(xml(substring(base64ToString(body('Transform_XML')?['$content']),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML')?['$content'])),indexOf(base64ToString(body('Transform_XML')?['$content']), '<')))))"
                                 }
                             },
                             "serviceProviderConfiguration": {

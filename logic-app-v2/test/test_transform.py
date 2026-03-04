@@ -67,11 +67,11 @@ def validate_against_xsd(xml_tree: etree._Element, schema_path: Path) -> list:
 def check_structure(xml_tree: etree._Element) -> list:
     """Perform structural checks on the transformed XML."""
     issues = []
-    ns = {"fa": "http://crd.gov.pl/wzor/2025/06/25/13775/"}
+    ns = {"fa": "http://ksef.mf.gov.pl/schema/FA/3-0E"}
     root = xml_tree.getroot()
 
-    if root.tag != "{http://crd.gov.pl/wzor/2025/06/25/13775/}Faktura":
-        issues.append(f"Root element is '{root.tag}', expected '{{http://crd.gov.pl/wzor/2025/06/25/13775/}}Faktura'")
+    if root.tag != "{http://ksef.mf.gov.pl/schema/FA/3-0E}Faktura":
+        issues.append(f"Root element is '{root.tag}', expected '{{http://ksef.mf.gov.pl/schema/FA/3-0E}}Faktura'")
 
     kod = root.find(".//fa:Naglowek/fa:KodFormularza", ns)
     if kod is not None:

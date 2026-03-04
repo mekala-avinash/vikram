@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Faktura
-	xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/">
+	xmlns="http://ksef.mf.gov.pl/schema/FA/3-0E">
 	<Naglowek>
 		<KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
 		<WariantFormularza>3</WariantFormularza>

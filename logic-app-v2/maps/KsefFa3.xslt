@@ -3,14 +3,14 @@
     KSeF FA(3) XSLT Transformation Map — v2
     =========================================
     Transforms CanonicalInvoice XML to FA(3)-compliant XML per FA(3)_schemat.xsd.
-    Target namespace: http://crd.gov.pl/wzor/2025/06/25/13775/
+    Target namespace: http://ksef.mf.gov.pl/schema/FA/3-0E
 
     Input:  CanonicalInvoice XML
     Output: Faktura XML validated against FA(3)_schemat.xsd
 -->
 <xsl:stylesheet version="1.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/"
+    xmlns="http://ksef.mf.gov.pl/schema/FA/3-0E"
     exclude-result-prefixes="xsl">
 
     <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="yes"/>

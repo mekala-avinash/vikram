@@ -80,10 +80,10 @@
                         "type": "ServiceProvider",
                         "inputs": {
                             "parameters": {
-                                "query": "DECLARE @Xml NVARCHAR(MAX) = @PartnerXML; IF LEFT(LTRIM(@Xml), 5) = '<?xml' SET @Xml = LTRIM(SUBSTRING(@Xml, CHARINDEX('?>', @Xml) + 2, LEN(@Xml))); MERGE [EDI].[PartnerSubmission] AS target USING (SELECT @EDIIntegrationId AS EDIIntegrationId, 'KSEF' AS PartnerCode) AS source ON target.EDIIntegrationId = source.EDIIntegrationId AND target.PartnerCode = source.PartnerCode WHEN MATCHED THEN UPDATE SET PartnerXML = TRY_CAST(@Xml AS XML), IntegrationStatusId = 1, LastUpdateDate = GETUTCDATE() WHEN NOT MATCHED THEN INSERT (EDIIntegrationId, PartnerCode, PartnerXML, IntegrationStatusId, InsertDate, LastUpdateDate) VALUES (source.EDIIntegrationId, source.PartnerCode, TRY_CAST(@Xml AS XML), 1, GETUTCDATE(), GETUTCDATE()); UPDATE [EDI].[EDIIntegrationTable] SET IntegrationStatusId = 30, LastUpdateDate = GETUTCDATE() WHERE EDIIntegrationId = @EDIIntegrationId; SELECT SCOPE_IDENTITY() AS PartnerSubmissionId;",
+                                "query": "EXEC [dbo].[usp_InsertPartnerSubmission] @EDIIntegrationId = @EDIIntegrationId, @PartnerXML = @PartnerXML",
                                 "queryParameters": {
                                     "EDIIntegrationId": "@body('Parse_CanonicalId')?['CanonicalId']",
-                                    "PartnerXML": "@string(xml(base64ToString(body('Transform_XML')?['$content'])))"
+                                    "PartnerXML": "@string(xml(substring(base64ToString(body('Transform_XML')?['$content']),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML')?['$content'])),indexOf(base64ToString(body('Transform_XML')?['$content']), '<')))))"
                                 }
                             },
                             "serviceProviderConfiguration": {

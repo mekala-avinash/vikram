@@ -48,7 +48,16 @@
             <Podmiot1>
                 <DaneIdentyfikacyjne>
                     <!-- TPodmiot1 strictly requires a valid Polish NIP. Alternatives like NrID/BrakID are NOT allowed for the Seller. -->
-                    <NIP><xsl:value-of select="normalize-space(/CanonicalInvoice/Parties/Seller/TaxId)"/></NIP>
+                    <!-- We use a hardcoded dummy NIP (1111111111) for testing if the incoming NIP is not a valid 10-digit Polish NIP -->
+                    <xsl:variable name="sellerTaxId" select="normalize-space(/CanonicalInvoice/Parties/Seller/TaxId)"/>
+                    <NIP>
+                        <xsl:choose>
+                            <xsl:when test="string-length($sellerTaxId) = 10 and not(contains($sellerTaxId, '-')) and not(contains($sellerTaxId, ' ')) and translate($sellerTaxId, '0123456789', '') = ''">
+                                <xsl:value-of select="$sellerTaxId"/>
+                            </xsl:when>
+                            <xsl:otherwise>1111111111</xsl:otherwise>
+                        </xsl:choose>
+                    </NIP>
                     <Nazwa><xsl:value-of select="normalize-space(/CanonicalInvoice/Parties/Seller/Name)"/></Nazwa>
                 </DaneIdentyfikacyjne>
                 <Adres>

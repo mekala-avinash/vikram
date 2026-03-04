@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Faktura
+	xmlns="http://ksef.mf.gov.pl/schema/FA/3-0E">
+	<Naglowek>
+		<KodFormularza kodSystemowy="FA(3)" wersjaSchemy="1-0E">3</KodFormularza>
+		<DataWytworzeniaFa>2026-02-19T00:00:00Z                 </DataWytworzeniaFa>
+		<SystemInfo>ITAAG002eLIMS-BPT_EUPL007</SystemInfo>
+	</Naglowek>
+	<Podmiot1>
+		<DaneIdentyfikacyjne>
+			<NIP>GST001234</NIP>
+			<Nazwa>Eurofins Biolab Srl</Nazwa>
+		</DaneIdentyfikacyjne>
+		<Adres>
+			<KodKraju>IT</KodKraju>
+			<AdresL1>Via Bruno Buozzi,2 I-20090 Vimodrone (MI) ITALY</AdresL1>
+		</Adres>
+	</Podmiot1>
+	<Podmiot2>
+		<DaneIdentyfikacyjne>
+			<NIP>99-9999999</NIP>
+			<Nazwa>eLIMS-BPT Test Account</Nazwa>
+		</DaneIdentyfikacyjne>
+		<Adres>
+			<KodKraju>US</KodKraju>
+			<AdresL1>B4 Maruthi, Sapphire</AdresL1>
+		</Adres>
+	</Podmiot2>
+	<Fa>
+		<P_1>2026-02-19</P_1>
+		<P_2>INV-Test-000052-26</P_2>
+		<Waluta>
+			<KodWaluty>EUR</KodWaluty>
+		</Waluta>
+		<Platnosc>
+			<TerminPlatnosci>2026-04-30</TerminPlatnosci>
+			<FormaPlatnosci>1</FormaPlatnosci>
+		</Platnosc>
+		<FaWiersz>
+			<NrWierszaFa>1</NrWierszaFa>
+			<P_7>Batch# ZN25AA1133 Project Uat for Water -- Sample# ZN25AA1133-1 test r10.2.0; Original Received Date 19-Nov-2025 -- QC811 - TEST 11</P_7>
+			<P_8A>szt</P_8A>
+			<Indeks>TST-ZD-0000259916</Indeks>
+			<P_8B>1</P_8B>
+			<P_9A>140.00</P_9A>
+			<P_10>0.00</P_10>
+			<P_11>140.00</P_11>
+			<P_12>0</P_12>
+		</FaWiersz>
+		<FaWiersz>
+			<NrWierszaFa>2</NrWierszaFa>
+			<P_7>Batch# ZN25AA1133 Project Uat for Water -- GP03S - GC Setup EP Comp of FA for GP03Q (for UAT Only)</P_7>
+			<P_8A>szt</P_8A>
+			<Indeks>BCG-JE4Q-25-323-0051</Indeks>
+			<P_8B>1</P_8B>
+			<P_9A>646.00</P_9A>
+			<P_10>0.00</P_10>
+			<P_11>646.00</P_11>
+			<P_12>0</P_12>
+		</FaWiersz>
+		<Rozliczenie>
+			<StawkiPodatku>
+				<StawkaPodatku>
+					<KodStawki>23</KodStawki>
+					<PodstawaOpodatkowania>786.00</PodstawaOpodatkowania>
+					<KwotaPodatku>0.00</KwotaPodatku>
+				</StawkaPodatku>
+			</StawkiPodatku>
+			<KwotaPodatkuNaleznego>0.00</KwotaPodatkuNaleznego>
+			<KwotaDoZaplaty>0.00</KwotaDoZaplaty>
+		</Rozliczenie>
+	</Fa>
+</Faktura>

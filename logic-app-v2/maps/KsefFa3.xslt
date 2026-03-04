@@ -47,6 +47,7 @@
             <!-- ===== PODMIOT1 (Seller) ===== -->
             <Podmiot1>
                 <DaneIdentyfikacyjne>
+                    <!-- TPodmiot1 strictly requires a valid Polish NIP. Alternatives like NrID/BrakID are NOT allowed for the Seller. -->
                     <NIP><xsl:value-of select="normalize-space(/CanonicalInvoice/Parties/Seller/TaxId)"/></NIP>
                     <Nazwa><xsl:value-of select="normalize-space(/CanonicalInvoice/Parties/Seller/Name)"/></Nazwa>
                 </DaneIdentyfikacyjne>
@@ -77,8 +78,27 @@
             <!-- ===== PODMIOT2 (Buyer) ===== -->
             <Podmiot2>
                 <DaneIdentyfikacyjne>
-                    <NIP><xsl:value-of select="normalize-space(/CanonicalInvoice/Parties/Buyer/TaxId)"/></NIP>
-                    <Nazwa><xsl:value-of select="normalize-space(/CanonicalInvoice/Parties/Buyer/Name)"/></Nazwa>
+                    <!-- Use NIP only if value matches Polish 10-digit NIP pattern; otherwise use NrID or BrakID -->
+                    <xsl:variable name="buyerTaxId" select="normalize-space(/CanonicalInvoice/Parties/Buyer/TaxId)"/>
+                    <xsl:variable name="buyerCountry" select="normalize-space(/CanonicalInvoice/Parties/Buyer/Address/Country)"/>
+                    <xsl:choose>
+                        <xsl:when test="string-length($buyerTaxId) = 10 and not(contains($buyerTaxId, '-')) and not(contains($buyerTaxId, ' ')) and translate($buyerTaxId, '0123456789', '') = ''">
+                            <NIP><xsl:value-of select="$buyerTaxId"/></NIP>
+                        </xsl:when>
+                        <xsl:when test="$buyerTaxId != ''">
+                            <xsl:if test="$buyerCountry != '' and $buyerCountry != 'PL'">
+                                <KodKraju><xsl:value-of select="$buyerCountry"/></KodKraju>
+                            </xsl:if>
+                            <NrID><xsl:value-of select="$buyerTaxId"/></NrID>
+                        </xsl:when>
+                        <xsl:otherwise>
+                            <BrakID>1</BrakID>
+                        </xsl:otherwise>
+                    </xsl:choose>
+                    <!-- Nazwa is optional in TPodmiot2; only emit when present -->
+                    <xsl:if test="normalize-space(/CanonicalInvoice/Parties/Buyer/Name) != ''">
+                        <Nazwa><xsl:value-of select="normalize-space(/CanonicalInvoice/Parties/Buyer/Name)"/></Nazwa>
+                    </xsl:if>
                 </DaneIdentyfikacyjne>
                 <Adres>
                     <xsl:choose>
@@ -194,7 +214,29 @@
                             <P_11><xsl:value-of select="NetAmount"/></P_11>
                         </xsl:if>
                         <xsl:if test="normalize-space(Tax/Rate) != ''">
-                            <P_12><xsl:value-of select="normalize-space(Tax/Rate)"/></P_12>
+                            <!-- Map raw rate to TStawkaPodatku enum values -->
+                            <P_12>
+                                <xsl:variable name="rawRate" select="normalize-space(Tax/Rate)"/>
+                                <xsl:choose>
+                                    <xsl:when test="$rawRate = '23' or $rawRate = '22' or $rawRate = '8' or $rawRate = '7' or $rawRate = '5' or $rawRate = '4' or $rawRate = '3'">
+                                        <xsl:value-of select="$rawRate"/>
+                                    </xsl:when>
+                                    <xsl:when test="$rawRate = '0 KR' or $rawRate = '0 WDT' or $rawRate = '0 EX'">
+                                        <xsl:value-of select="$rawRate"/>
+                                    </xsl:when>
+                                    <xsl:when test="$rawRate = 'zw' or $rawRate = 'oo' or $rawRate = 'np I' or $rawRate = 'np II'">
+                                        <xsl:value-of select="$rawRate"/>
+                                    </xsl:when>
+                                    <!-- Numeric 0 or empty maps to 'zw' (exempt) -->
+                                    <xsl:when test="$rawRate = '0' or $rawRate = '0.00' or $rawRate = '0.0'">
+                                        <xsl:text>zw</xsl:text>
+                                    </xsl:when>
+                                    <!-- Any other unrecognised value maps to 'np I' (out of scope) -->
+                                    <xsl:otherwise>
+                                        <xsl:text>np I</xsl:text>
+                                    </xsl:otherwise>
+                                </xsl:choose>
+                            </P_12>
                         </xsl:if>
                     </FaWiersz>
                 </xsl:for-each>

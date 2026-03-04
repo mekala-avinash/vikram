@@ -1,5 +1,15 @@
 # Phase 3 & 4 Demo Setup Guide — Azure Portal
 
+> **Update (v2)**: The `logic-app-v2/` folder contains rebuilt workflows and a fully FA(3)-compliant XSLT.
+> Key changes in v2:
+> - XSLT uses correct namespace `http://crd.gov.pl/wzor/2025/06/25/13775/` and passes XSD validation
+> - Added required elements: `WariantFormularza`, `Adnotacje`, `RodzajFaktury`, `JST`, `GV`, `P_15`
+> - Fixed `KodFormularza @kodSystemowy` from `"FA(3)"` to `"FA (3)"` (with space)
+> - Tax summaries use `P_13_x`/`P_14_x` fields instead of `Rozliczenie/StawkiPodatku`
+> - `TransformToKsefXml` now validates XML output and sends queue message
+> - `SubmitToPartner` includes `X-KSEF-SCHEMA: FA3` header
+> - Run `python logic-app-v2/test/test_transform.py` to validate the XSLT against the XSD
+
 > **Assumption**: Phase 1 & 2 are already deployed. You have:
 > - A Resource Group (e.g., `xmlintegration-demo-rg`)
 > - A SQL Database with `EDIIntegrationTable` containing rows at **Status = 2** (Canonical XML Generated)

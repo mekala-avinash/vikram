@@ -61,6 +61,70 @@
                             }
                         }
                     },
+                    "Validate_XML": {
+                        "type": "XmlValidation",
+                        "inputs": {
+                            "content": "@xml(substring(base64ToString(body('Transform_XML')?['$content']),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML')?['$content'])),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'))))",
+                            "schema": {
+                                "source": "LogicApp",
+                                "name": "FA3_schemat.xsd"
+                            }
+                        },
+                        "runAfter": {
+                            "Transform_XML": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    },
+                    "Upsert_PartnerSubmission": {
+                        "type": "ServiceProvider",
+                        "inputs": {
+                            "parameters": {
+                                "query": "DECLARE @Xml NVARCHAR(MAX) = @PartnerXML; IF LEFT(LTRIM(@Xml), 5) = '<?xml' SET @Xml = LTRIM(SUBSTRING(@Xml, CHARINDEX('?>', @Xml) + 2, LEN(@Xml))); MERGE [EDI].[PartnerSubmission] AS target USING (SELECT @EDIIntegrationId AS EDIIntegrationId, 'KSEF' AS PartnerCode) AS source ON target.EDIIntegrationId = source.EDIIntegrationId AND target.PartnerCode = source.PartnerCode WHEN MATCHED THEN UPDATE SET PartnerXML = TRY_CAST(@Xml AS XML), IntegrationStatusId = 1, LastUpdateDate = GETUTCDATE() WHEN NOT MATCHED THEN INSERT (EDIIntegrationId, PartnerCode, PartnerXML, IntegrationStatusId, InsertDate, LastUpdateDate) VALUES (source.EDIIntegrationId, source.PartnerCode, TRY_CAST(@Xml AS XML), 1, GETUTCDATE(), GETUTCDATE()); UPDATE [EDI].[EDIIntegrationTable] SET IntegrationStatusId = 30, LastUpdateDate = GETUTCDATE() WHERE EDIIntegrationId = @EDIIntegrationId; SELECT SCOPE_IDENTITY() AS PartnerSubmissionId;",
+                                "queryParameters": {
+                                    "EDIIntegrationId": "@body('Parse_CanonicalId')?['CanonicalId']",
+                                    "PartnerXML": "@string(xml(base64ToString(body('Transform_XML')?['$content'])))"
+                                }
+                            },
+                            "serviceProviderConfiguration": {
+                                "connectionName": "sql-2",
+                                "operationId": "executeQuery",
+                                "serviceProviderId": "/serviceProviders/sql"
+                            }
+                        },
+                        "runAfter": {
+                            "Validate_XML": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    },
+                    "Send_Queue_Message": {
+                        "type": "ServiceProvider",
+                        "inputs": {
+                            "parameters": {
+                                "entityName": "ksef-xml-ready-for-submission",
+                                "message": {
+                                    "contentData": {
+                                        "PartnerSubmissionId": "@body('Upsert_PartnerSubmission')?['resultSets']?['Table1']?[0]?['PartnerSubmissionId']"
+                                    },
+                                    "sessionId": "@string(body('Parse_CanonicalId')?['CanonicalId'])",
+                                    "messageId": "@guid()",
+                                    "correlationId": "@string(body('Parse_CanonicalId')?['CanonicalId'])"
+                                },
+                                "queueName": "ksef-xml-ready-for-submission"
+                            },
+                            "serviceProviderConfiguration": {
+                                "connectionName": "serviceBus",
+                                "operationId": "sendMessage",
+                                "serviceProviderId": "/serviceProviders/serviceBus"
+                            }
+                        },
+                        "runAfter": {
+                            "Upsert_PartnerSubmission": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    },
                     "Complete_Message_Success": {
                         "type": "ServiceProvider",
                         "inputs": {
@@ -76,52 +140,7 @@
                             }
                         },
                         "runAfter": {
-                            "Send_message": [
-                                "SUCCEEDED"
-                            ]
-                        }
-                    },
-                    "Execute_stored_procedure": {
-                        "type": "ServiceProvider",
-                        "inputs": {
-                            "parameters": {
-                                "storedProcedureName": "EDI.InsertPartnerXml",
-                                "storedProcedureParameters": {
-                                    "CanonicalId": "@body('Parse_CanonicalId')?['CanonicalId']",
-                                    "PartnerXml": "N'@{substring(base64ToString(body('Transform_XML')?['$content']),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML')?['$content'])),indexOf(base64ToString(body('Transform_XML')?['$content']), '<')))}'"
-                                }
-                            },
-                            "serviceProviderConfiguration": {
-                                "connectionName": "sql-2",
-                                "operationId": "executeStoredProcedure",
-                                "serviceProviderId": "/serviceProviders/sql"
-                            }
-                        },
-                        "runAfter": {
-                            "Transform_XML": [
-                                "SUCCEEDED"
-                            ]
-                        }
-                    },
-                    "Send_message": {
-                        "type": "ServiceProvider",
-                        "inputs": {
-                            "parameters": {
-                                "entityName": "ksef-xml-ready-for-submission",
-                                "message": {
-                                    "sessionId": "@body('Parse_CanonicalId')?['CanonicalID']",
-                                    "messageId": "@guid()",
-                                    "correlationId": "@body('Parse_CanonicalId')?['CanonicalID']"
-                                }
-                            },
-                            "serviceProviderConfiguration": {
-                                "connectionName": "serviceBus",
-                                "operationId": "sendMessage",
-                                "serviceProviderId": "/serviceProviders/serviceBus"
-                            }
-                        },
-                        "runAfter": {
-                            "Execute_stored_procedure": [
+                            "Send_Queue_Message": [
                                 "SUCCEEDED"
                             ]
                         }

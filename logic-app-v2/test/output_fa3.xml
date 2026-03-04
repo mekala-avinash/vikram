@@ -1,0 +1,106 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/">
+  <Naglowek>
+    <KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
+    <WariantFormularza>3</WariantFormularza>
+    <DataWytworzeniaFa>2025-10-15T00:00:00Z</DataWytworzeniaFa>
+    <SystemInfo>ERP_Integration_v2</SystemInfo>
+  </Naglowek>
+  <Podmiot1>
+    <DaneIdentyfikacyjne>
+      <NIP>5213000389</NIP>
+      <Nazwa>ACME Sp. z o.o.</Nazwa>
+    </DaneIdentyfikacyjne>
+    <Adres>
+      <KodKraju>PL</KodKraju>
+      <AdresL1>ul. Marszalkowska 10</AdresL1>
+      <AdresL2>00-624 Warszawa</AdresL2>
+    </Adres>
+    <DaneKontaktowe>
+      <Email>fakturowanie@acme.pl</Email>
+      <Telefon>+48221234567</Telefon>
+    </DaneKontaktowe>
+  </Podmiot1>
+  <Podmiot2>
+    <DaneIdentyfikacyjne>
+      <NIP>1234567890</NIP>
+      <Nazwa>Odbiorca Test Sp. z o.o.</Nazwa>
+    </DaneIdentyfikacyjne>
+    <Adres>
+      <KodKraju>PL</KodKraju>
+      <AdresL1>ul. Nowy Swiat 5</AdresL1>
+      <AdresL2>00-496 Warszawa</AdresL2>
+    </Adres>
+    <DaneKontaktowe>
+      <Email>zakupy@odbiorca.pl</Email>
+    </DaneKontaktowe>
+    <JST>2</JST>
+    <GV>2</GV>
+  </Podmiot2>
+  <Fa>
+    <KodWaluty>PLN</KodWaluty>
+    <P_1>2025-10-15</P_1>
+    <P_2>IV-CPL018-25-000695</P_2>
+    <P_13_1>6800.00</P_13_1>
+    <P_14_1>1564.00</P_14_1>
+    <P_13_2>400.00</P_13_2>
+    <P_14_2>32.00</P_14_2>
+    <P_15>8796.00</P_15>
+    <Adnotacje>
+      <P_16>2</P_16>
+      <P_17>2</P_17>
+      <P_18>2</P_18>
+      <P_18A>2</P_18A>
+      <Zwolnienie>
+        <P_19N>1</P_19N>
+      </Zwolnienie>
+      <NoweSrodkiTransportu>
+        <P_22N>1</P_22N>
+      </NoweSrodkiTransportu>
+      <P_23>2</P_23>
+      <PMarzy>
+        <P_PMarzyN>1</P_PMarzyN>
+      </PMarzy>
+    </Adnotacje>
+    <RodzajFaktury>VAT</RodzajFaktury>
+    <FaWiersz>
+      <NrWierszaFa>1</NrWierszaFa>
+      <P_7>Usluga konsultingowa - analiza biznesowa</P_7>
+      <Indeks>SVC-CONSULT-001</Indeks>
+      <P_8A>szt</P_8A>
+      <P_8B>10.000000</P_8B>
+      <P_9A>500.00</P_9A>
+      <P_11>5000.00</P_11>
+      <P_12>23</P_12>
+    </FaWiersz>
+    <FaWiersz>
+      <NrWierszaFa>2</NrWierszaFa>
+      <P_7>Licencja oprogramowania - roczna</P_7>
+      <Indeks>LIC-SW-ANNUAL</Indeks>
+      <P_8A>szt</P_8A>
+      <P_8B>1.000000</P_8B>
+      <P_9A>2000.00</P_9A>
+      <P_10>200.00</P_10>
+      <P_11>1800.00</P_11>
+      <P_12>23</P_12>
+    </FaWiersz>
+    <FaWiersz>
+      <NrWierszaFa>3</NrWierszaFa>
+      <P_7>Podrecznik szkoleniowy</P_7>
+      <P_8A>szt</P_8A>
+      <P_8B>5.000000</P_8B>
+      <P_9A>80.00</P_9A>
+      <P_11>400.00</P_11>
+      <P_12>8</P_12>
+    </FaWiersz>
+    <Platnosc>
+      <TerminPlatnosci>
+        <Termin>2025-11-14</Termin>
+      </TerminPlatnosci>
+      <FormaPlatnosci>6</FormaPlatnosci>
+      <RachunekBankowy>
+        <NrRB>PL61109010140000071219812874</NrRB>
+      </RachunekBankowy>
+    </Platnosc>
+  </Fa>
+</Faktura>

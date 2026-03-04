@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CanonicalInvoice>
+    <Header>
+        <IssueDate>2025-10-15</IssueDate>
+        <InvoiceNumber>IV-CPL018-25-000695</InvoiceNumber>
+        <Currency>PLN</Currency>
+        <DueDate>2025-11-14</DueDate>
+        <PaymentMethod>6</PaymentMethod>
+        <BankAccount>PL61109010140000071219812874</BankAccount>
+        <SystemInfo>ERP_Integration_v2</SystemInfo>
+    </Header>
+    <Parties>
+        <Seller>
+            <TaxId>5213000389</TaxId>
+            <Name>ACME Sp. z o.o.</Name>
+            <Address>
+                <Country>PL</Country>
+                <Street>ul. Marszalkowska 10</Street>
+                <City>00-624 Warszawa</City>
+            </Address>
+            <Contact>
+                <Email>fakturowanie@acme.pl</Email>
+                <Phone>+48221234567</Phone>
+            </Contact>
+        </Seller>
+        <Buyer>
+            <TaxId>1234567890</TaxId>
+            <Name>Odbiorca Test Sp. z o.o.</Name>
+            <Address>
+                <Country>PL</Country>
+                <Street>ul. Nowy Swiat 5</Street>
+                <City>00-496 Warszawa</City>
+            </Address>
+            <Contact>
+                <Email>zakupy@odbiorca.pl</Email>
+            </Contact>
+        </Buyer>
+    </Parties>
+    <Lines>
+        <LineItem Number="1">
+            <Product>
+                <Name>Usluga konsultingowa - analiza biznesowa</Name>
+                <SKU>SVC-CONSULT-001</SKU>
+            </Product>
+            <Quantity Unit="szt">10.000000</Quantity>
+            <UnitPrice>500.00</UnitPrice>
+            <NetAmount>5000.00</NetAmount>
+            <Tax>
+                <Rate>23</Rate>
+            </Tax>
+        </LineItem>
+        <LineItem Number="2">
+            <Product>
+                <Name>Licencja oprogramowania - roczna</Name>
+                <SKU>LIC-SW-ANNUAL</SKU>
+            </Product>
+            <Quantity Unit="szt">1.000000</Quantity>
+            <UnitPrice>2000.00</UnitPrice>
+            <DiscountAmount>200.00</DiscountAmount>
+            <NetAmount>1800.00</NetAmount>
+            <Tax>
+                <Rate>23</Rate>
+            </Tax>
+        </LineItem>
+        <LineItem Number="3">
+            <Product>
+                <Name>Podrecznik szkoleniowy</Name>
+            </Product>
+            <Quantity Unit="szt">5.000000</Quantity>
+            <UnitPrice>80.00</UnitPrice>
+            <NetAmount>400.00</NetAmount>
+            <Tax>
+                <Rate>8</Rate>
+            </Tax>
+        </LineItem>
+    </Lines>
+    <Summary>
+        <Taxes>
+            <Tax>
+                <Rate>23</Rate>
+                <NetAmount>6800.00</NetAmount>
+                <TaxAmount>1564.00</TaxAmount>
+            </Tax>
+            <Tax>
+                <Rate>8</Rate>
+                <NetAmount>400.00</NetAmount>
+                <TaxAmount>32.00</TaxAmount>
+            </Tax>
+        </Taxes>
+        <TotalNetAmount>7200.00</TotalNetAmount>
+        <TotalTaxAmount>1596.00</TotalTaxAmount>
+        <TotalGrossAmount>8796.00</TotalGrossAmount>
+    </Summary>
+</CanonicalInvoice>

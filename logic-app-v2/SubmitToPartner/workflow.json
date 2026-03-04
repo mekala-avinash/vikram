@@ -1,6 +1,7 @@
 {
     "definition": {
         "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
         "actions": {
             "Parse_Message": {
                 "type": "ParseJson",
@@ -87,7 +88,8 @@
                     "headers": {
                         "Accept": "application/json",
                         "Authorization": "Bearer @{body('Parse_OAuth_Token')?['access_token']}",
-                        "Content-Type": "application/x.ksef.invoice+xml"
+                        "Content-Type": "application/x.ksef.invoice+xml",
+                        "X-KSEF-SCHEMA": "FA3"
                     },
                     "body": "@body('Get_Partner_XML')?['resultSets'][0][0]['PartnerXML']"
                 },

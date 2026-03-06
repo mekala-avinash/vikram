@@ -105,7 +105,7 @@
                                 "entityName": "ksef-xml-ready-for-submission",
                                 "message": {
                                     "contentData": {
-                                        "PartnerSubmissionId": "@body('Upsert_PartnerSubmission')?['resultSets']?['Table1']?[0]?['PartnerSubmissionId']"
+                                        "PartnerSubmissionId": "@body('Upsert_PartnerSubmission')?[0]?[0]?['SubmissionId']"
                                     },
                                     "sessionId": "@string(body('Parse_CanonicalId')?['CanonicalId'])",
                                     "messageId": "@guid()",

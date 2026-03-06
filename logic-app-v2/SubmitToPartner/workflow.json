@@ -6,7 +6,7 @@
             "Parse_Message": {
                 "type": "ParseJson",
                 "inputs": {
-                    "content": "@base64ToString(triggerBody()?[0]?['ContentData'])",
+                    "content": "@json(string(coalesce(triggerBody()?[0]?['ContentData'], triggerBody()?[0]?['contentData'], '{}')))",
                     "schema": {
                         "properties": {
                             "PartnerSubmissionId": {
@@ -22,7 +22,7 @@
                 "type": "ServiceProvider",
                 "inputs": {
                     "parameters": {
-                        "query": "SELECT PartnerSubmissionId, PartnerXML FROM [dbo].[PartnerSubmission] WHERE PartnerSubmissionId = @PartnerSubmissionId",
+                        "query": "SELECT s.name AS SchemaName, sy.name AS SynonymName, sy.base_object_name FROM sys.synonyms sy JOIN sys.schemas s ON s.schema_id = sy.schema_id WHERE sy.name LIKE '%PartnerSubmission%';",
                         "queryParameters": {
                             "PartnerSubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']"
                         }

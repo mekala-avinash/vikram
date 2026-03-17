@@ -22,13 +22,13 @@
                 "type": "ServiceProvider",
                 "inputs": {
                     "parameters": {
-                        "query": "SELECT s.name AS SchemaName, sy.name AS SynonymName, sy.base_object_name FROM sys.synonyms sy JOIN sys.schemas s ON s.schema_id = sy.schema_id WHERE sy.name LIKE '%PartnerSubmission%';",
+                        "query": "SELECT top 1 PS.SubmissionId,PX.PartnerDocumentData from EDI.PartnerSubmissions PS\njoin EDI.PartnerDocuments PX on PS.PartnerDocumentId = PX.PartnerDocumentId\nwhere PS.SubmissionId =  @PartnerSubmissionId",
                         "queryParameters": {
                             "PartnerSubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']"
                         }
                     },
                     "serviceProviderConfiguration": {
-                        "connectionName": "sql",
+                        "connectionName": "sql-2",
                         "operationId": "executeQuery",
                         "serviceProviderId": "/serviceProviders/sql"
                     }
@@ -42,12 +42,14 @@
             "Get_OAuth_Token": {
                 "type": "Http",
                 "inputs": {
-                    "uri": "https://login.smartksef-staging.exorigo-upos.pl/d92dfc98-2b80-4938-97f5-d4bee2112678/oauth2/v2.0/token?p=B2C_1_susi_default",
+                    "uri": "https://login.smartksef-staging.exorigo-upos.pl/d92dfc98-2b80-4938-97f5-d4bee2112678/B2C_1_susi/oauth2/v2.0/token?grant_type=client_credentials&client_id=0a0c76b5-31eb-47ec-86ff-ae15588b2212&client_secret=REDACTED_CLIENT_SECRET&scope=https://login.smartksef-staging.exorigo-upos.pl/api/invoices/.default",
                     "method": "POST",
-                    "headers": {
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                    "body": "grant_type=client_credentials&client_id=@{appsetting('SMARTKSEF_CLIENT_ID')}&client_secret=@{appsetting('SMARTKSEF_CLIENT_SECRET')}&scope=https://login.smartksef-staging.exorigo-upos.pl/api/invoices/.default"
+                    "queries": {
+                        "grant_type": "client_credentials",
+                        "client_id": "0a0c76b5-31eb-47ec-86ff-ae15588b2212",
+                        "client_secret": "REDACTED_CLIENT_SECRET",
+                        "scope": "https://login.smartksef-staging.exorigo-upos.pl/api/invoices/.default"
+                    }
                 },
                 "runAfter": {
                     "Get_Partner_XML": [
@@ -86,12 +88,13 @@
                     "uri": "https://api.smartksef-staging.exorigo-upos.pl/invoices",
                     "method": "POST",
                     "headers": {
-                        "Accept": "application/json",
+                        "Accept": "*/*",
                         "Authorization": "Bearer @{body('Parse_OAuth_Token')?['access_token']}",
                         "Content-Type": "application/x.ksef.invoice+xml",
+                        "Prefer": "return=representation",
                         "X-KSEF-SCHEMA": "FA3"
                     },
-                    "body": "@body('Get_Partner_XML')?['resultSets'][0][0]['PartnerXML']"
+                    "body": "@body('Get_Partner_XML')?[0]?[0]?['PartnerDocumentData']"
                 },
                 "runAfter": {
                     "Parse_OAuth_Token": [
@@ -102,35 +105,43 @@
             "Check_HTTP_Status": {
                 "type": "If",
                 "expression": {
-                    "and": [
+                    "or": [
                         {
-                            "greaterOrEquals": [
+                            "equals": [
                                 "@outputs('POST_to_KSeF_API')['statusCode']",
                                 200
                             ]
                         },
                         {
-                            "less": [
+                            "equals": [
                                 "@outputs('POST_to_KSeF_API')['statusCode']",
-                                300
+                                201
+                            ]
+                        },
+                        {
+                            "equals": [
+                                "@outputs('POST_to_KSeF_API')['statusCode']",
+                                202
                             ]
                         }
                     ]
                 },
                 "actions": {
-                    "Execute_usp_UpdatePartnerSubmissionStatus_Success": {
+                    "Execute_stored_procedure": {
                         "type": "ServiceProvider",
                         "inputs": {
                             "parameters": {
-                                "query": "EXEC [dbo].[usp_UpdatePartnerSubmissionStatus] @PartnerSubmissionId = @PartnerSubmissionId, @Status = 2, @KSeFReferenceNumber = @KSeFReferenceNumber",
-                                "queryParameters": {
-                                    "KSeFReferenceNumber": "@body('POST_to_KSeF_API')?['referenceNumber']",
-                                    "PartnerSubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']"
-                                }
+                                "storedProcedureName": "EDI.UpdatePartnerSubmissionStatus",
+                                "storedProcedureParameters": {
+                                    "SubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']",
+                                    "NewStatusCode": "Submitted",
+                                    "PartnerReferenceId": "@body('POST_to_KSeF_API')?['id']"
+                                },
+                                "includeEmptyResultSets": true
                             },
                             "serviceProviderConfiguration": {
-                                "connectionName": "sql",
-                                "operationId": "executeQuery",
+                                "connectionName": "sql-2",
+                                "operationId": "executeStoredProcedure",
                                 "serviceProviderId": "/serviceProviders/sql"
                             }
                         }
@@ -142,15 +153,17 @@
                             "type": "ServiceProvider",
                             "inputs": {
                                 "parameters": {
-                                    "query": "EXEC [dbo].[usp_UpdatePartnerSubmissionStatus] @PartnerSubmissionId = @PartnerSubmissionId, @Status = 3, @ErrorMessage = @ErrorMessage",
-                                    "queryParameters": {
-                                        "ErrorMessage": "@substring(string(body('POST_to_KSeF_API')), 0, 500)",
-                                        "PartnerSubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']"
-                                    }
+                                    "storedProcedureName": "EDI.UpdatePartnerSubmissionStatus",
+                                    "storedProcedureParameters": {
+                                        "SubmissionId": "@body('Parse_Message')?['PartnerSubmissionId']",
+                                        "NewStatusCode": "SubmissionFailed",
+                                        "ErrorMessage": "@substring(string(coalesce(body('POST_to_KSeF_API'), 'No response body')), 0, min(length(string(coalesce(body('POST_to_KSeF_API'), 'No response body'))), 500))"
+                                    },
+                                    "includeEmptyResultSets": true
                                 },
                                 "serviceProviderConfiguration": {
-                                    "connectionName": "sql",
-                                    "operationId": "executeQuery",
+                                    "connectionName": "sql-2",
+                                    "operationId": "executeStoredProcedure",
                                     "serviceProviderId": "/serviceProviders/sql"
                                 }
                             }
@@ -166,7 +179,6 @@
                 }
             }
         },
-        "contentVersion": "1.0.0.0",
         "outputs": {},
         "triggers": {
             "When_message_arrives_in_queue": {

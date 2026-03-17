@@ -1,9 +1,9 @@
 {
     "definition": {
         "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-        "contentVersion": "1.0.0.0",
+        "contentVersion": "2.0.0.0",
         "actions": {
-            "Parse_CanonicalId": {
+            "Parse_Message": {
                 "type": "ParseJson",
                 "inputs": {
                     "content": "@string(triggerBody()?[0]?['contentData'])",
@@ -12,11 +12,32 @@
                         "properties": {
                             "CanonicalId": {
                                 "type": "integer"
+                            },
+                            "ConversionType": {
+                                "type": "string"
                             }
-                        }
+                        },
+                        "required": ["CanonicalId", "ConversionType"]
                     }
                 },
                 "runAfter": {}
+            },
+            "Set_ConversionType": {
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "ConversionType",
+                            "type": "string",
+                            "value": "@coalesce(body('Parse_Message')?['ConversionType'], 'PL_KSEF')"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Parse_Message": [
+                        "SUCCEEDED"
+                    ]
+                }
             },
             "Execute_a_SQL_query_(V2)": {
                 "type": "ApiConnection",
@@ -28,12 +49,12 @@
                     },
                     "method": "post",
                     "body": {
-                        "query": "SELECT CanonicalXML FROM [EDI].[InvoiceCanonicals] WHERE CanonicalId = @{body('Parse_CanonicalId')?['CanonicalId']}"
+                        "query": "SELECT CanonicalData FROM [EDI].[InvoiceCanonicals] WHERE CanonicalId = @{body('Parse_Message')?['CanonicalId']}"
                     },
                     "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('default'))},@{encodeURIComponent(encodeURIComponent('default'))}/query/sql"
                 },
                 "runAfter": {
-                    "Parse_CanonicalId": [
+                    "Initialize_TransformedXml": [
                         "SUCCEEDED"
                     ]
                 }
@@ -51,39 +72,245 @@
                     ]
                 },
                 "actions": {
-                    "Transform_XML": {
-                        "type": "Xslt",
-                        "inputs": {
-                            "content": "@string(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1']?[0]?['CanonicalXML'])",
-                            "map": {
-                                "source": "LogicApp",
-                                "name": "KsefFa3.xslt"
-                            }
-                        }
-                    },
-                    "Validate_XML": {
-                        "type": "XmlValidation",
-                        "inputs": {
-                            "content": "@xml(substring(base64ToString(body('Transform_XML')?['$content']),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML')?['$content'])),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'))))",
-                            "schema": {
-                                "source": "LogicApp",
-                                "name": "FA3_schemat.xsd"
+                    "Route_By_ConversionType": {
+                        "type": "Switch",
+                        "expression": "@variables('ConversionType')",
+                        "cases": {
+                            "PL_KSEF": {
+                                "case": "PL_KSEF",
+                                "actions": {
+                                    "Transform_XML_PL": {
+                                        "type": "Xslt",
+                                        "inputs": {
+                                            "content": "@string(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1']?[0]?['CanonicalData'])",
+                                            "map": {
+                                                "source": "LogicApp",
+                                                "name": "KsefFa3.xslt"
+                                            }
+                                        }
+                                    },
+                                    "Validate_XML_PL": {
+                                        "type": "XmlValidation",
+                                        "inputs": {
+                                            "content": "@xml(substring(base64ToString(body('Transform_XML_PL')?['$content']),indexOf(base64ToString(body('Transform_XML_PL')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_PL')?['$content'])),indexOf(base64ToString(body('Transform_XML_PL')?['$content']), '<'))))",
+                                            "schema": {
+                                                "source": "LogicApp",
+                                                "name": "FA3_schemat.xsd"
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Transform_XML_PL": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    },
+                                    "Set_TransformResult_PL": {
+                                        "type": "SetVariable",
+                                        "inputs": {
+                                            "name": "TransformedXml",
+                                            "value": "@string(xml(substring(base64ToString(body('Transform_XML_PL')?['$content']),indexOf(base64ToString(body('Transform_XML_PL')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_PL')?['$content'])),indexOf(base64ToString(body('Transform_XML_PL')?['$content']), '<')))))"
+                                        },
+                                        "runAfter": {
+                                            "Validate_XML_PL": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "BE_UBL": {
+                                "case": "BE_UBL",
+                                "actions": {
+                                    "Transform_XML_BE": {
+                                        "type": "Xslt",
+                                        "inputs": {
+                                            "content": "@string(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1']?[0]?['CanonicalData'])",
+                                            "map": {
+                                                "source": "LogicApp",
+                                                "name": "BelgiumUBL.xslt"
+                                            }
+                                        }
+                                    },
+                                    "Validate_XML_BE": {
+                                        "type": "XmlValidation",
+                                        "inputs": {
+                                            "content": "@xml(substring(base64ToString(body('Transform_XML_BE')?['$content']),indexOf(base64ToString(body('Transform_XML_BE')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_BE')?['$content'])),indexOf(base64ToString(body('Transform_XML_BE')?['$content']), '<'))))",
+                                            "schema": {
+                                                "source": "LogicApp",
+                                                "name": "UBL-Invoice-2.1.xsd"
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Transform_XML_BE": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    },
+                                    "Set_TransformResult_BE": {
+                                        "type": "SetVariable",
+                                        "inputs": {
+                                            "name": "TransformedXml",
+                                            "value": "@string(xml(substring(base64ToString(body('Transform_XML_BE')?['$content']),indexOf(base64ToString(body('Transform_XML_BE')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_BE')?['$content'])),indexOf(base64ToString(body('Transform_XML_BE')?['$content']), '<')))))"
+                                        },
+                                        "runAfter": {
+                                            "Validate_XML_BE": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "DE_XRECHNUNG": {
+                                "case": "DE_XRECHNUNG",
+                                "actions": {
+                                    "Transform_XML_DE": {
+                                        "type": "Xslt",
+                                        "inputs": {
+                                            "content": "@string(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1']?[0]?['CanonicalData'])",
+                                            "map": {
+                                                "source": "LogicApp",
+                                                "name": "GermanyXRechnung.xslt"
+                                            }
+                                        }
+                                    },
+                                    "Validate_XML_DE": {
+                                        "type": "XmlValidation",
+                                        "inputs": {
+                                            "content": "@xml(substring(base64ToString(body('Transform_XML_DE')?['$content']),indexOf(base64ToString(body('Transform_XML_DE')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_DE')?['$content'])),indexOf(base64ToString(body('Transform_XML_DE')?['$content']), '<'))))",
+                                            "schema": {
+                                                "source": "LogicApp",
+                                                "name": "XRechnung-Invoice.xsd"
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Transform_XML_DE": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    },
+                                    "Set_TransformResult_DE": {
+                                        "type": "SetVariable",
+                                        "inputs": {
+                                            "name": "TransformedXml",
+                                            "value": "@string(xml(substring(base64ToString(body('Transform_XML_DE')?['$content']),indexOf(base64ToString(body('Transform_XML_DE')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_DE')?['$content'])),indexOf(base64ToString(body('Transform_XML_DE')?['$content']), '<')))))"
+                                        },
+                                        "runAfter": {
+                                            "Validate_XML_DE": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "FR_FACTURX": {
+                                "case": "FR_FACTURX",
+                                "actions": {
+                                    "Transform_XML_FR": {
+                                        "type": "Xslt",
+                                        "inputs": {
+                                            "content": "@string(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1']?[0]?['CanonicalData'])",
+                                            "map": {
+                                                "source": "LogicApp",
+                                                "name": "FranceFacturX.xslt"
+                                            }
+                                        }
+                                    },
+                                    "Validate_XML_FR": {
+                                        "type": "XmlValidation",
+                                        "inputs": {
+                                            "content": "@xml(substring(base64ToString(body('Transform_XML_FR')?['$content']),indexOf(base64ToString(body('Transform_XML_FR')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_FR')?['$content'])),indexOf(base64ToString(body('Transform_XML_FR')?['$content']), '<'))))",
+                                            "schema": {
+                                                "source": "LogicApp",
+                                                "name": "Factur-X.xsd"
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Transform_XML_FR": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    },
+                                    "Set_TransformResult_FR": {
+                                        "type": "SetVariable",
+                                        "inputs": {
+                                            "name": "TransformedXml",
+                                            "value": "@string(xml(substring(base64ToString(body('Transform_XML_FR')?['$content']),indexOf(base64ToString(body('Transform_XML_FR')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_FR')?['$content'])),indexOf(base64ToString(body('Transform_XML_FR')?['$content']), '<')))))"
+                                        },
+                                        "runAfter": {
+                                            "Validate_XML_FR": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "IT_SDI": {
+                                "case": "IT_SDI",
+                                "actions": {
+                                    "Transform_XML_IT": {
+                                        "type": "Xslt",
+                                        "inputs": {
+                                            "content": "@string(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1']?[0]?['CanonicalData'])",
+                                            "map": {
+                                                "source": "LogicApp",
+                                                "name": "ItalySDI.xslt"
+                                            }
+                                        }
+                                    },
+                                    "Validate_XML_IT": {
+                                        "type": "XmlValidation",
+                                        "inputs": {
+                                            "content": "@xml(substring(base64ToString(body('Transform_XML_IT')?['$content']),indexOf(base64ToString(body('Transform_XML_IT')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_IT')?['$content'])),indexOf(base64ToString(body('Transform_XML_IT')?['$content']), '<'))))",
+                                            "schema": {
+                                                "source": "LogicApp",
+                                                "name": "FatturaPA.xsd"
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Transform_XML_IT": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    },
+                                    "Set_TransformResult_IT": {
+                                        "type": "SetVariable",
+                                        "inputs": {
+                                            "name": "TransformedXml",
+                                            "value": "@string(xml(substring(base64ToString(body('Transform_XML_IT')?['$content']),indexOf(base64ToString(body('Transform_XML_IT')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_IT')?['$content'])),indexOf(base64ToString(body('Transform_XML_IT')?['$content']), '<')))))"
+                                        },
+                                        "runAfter": {
+                                            "Validate_XML_IT": [
+                                                "SUCCEEDED"
+                                            ]
+                                        }
+                                    }
+                                }
                             }
                         },
-                        "runAfter": {
-                            "Transform_XML": [
-                                "SUCCEEDED"
-                            ]
+                        "default": {
+                            "actions": {
+                                "Terminate_Unknown_ConversionType": {
+                                    "type": "Terminate",
+                                    "inputs": {
+                                        "runStatus": "Failed",
+                                        "runError": {
+                                            "code": "UnsupportedConversionType",
+                                            "message": "ConversionType '@{variables('ConversionType')}' is not supported. Supported types: PL_KSEF, BE_UBL, DE_XRECHNUNG, FR_FACTURX, IT_SDI"
+                                        }
+                                    }
+                                }
+                            }
                         }
                     },
                     "Upsert_PartnerSubmission": {
                         "type": "ServiceProvider",
                         "inputs": {
                             "parameters": {
-                                "query": "EXEC [EDI].[InsertPartnerXml] @CanonicalId = @CanonicalId, @PartnerXml = @PartnerXml",
+                                "query": "EXEC [EDI].[InsertPartnerDocument] @CanonicalId = @CanonicalId, @PartnerDocumentData = @PartnerDocumentData, @ConversionType = @ConversionType",
                                 "queryParameters": {
-                                    "CanonicalId": "@body('Parse_CanonicalId')?['CanonicalId']",
-                                    "PartnerXml": "@string(xml(substring(base64ToString(body('Transform_XML')?['$content']),indexOf(base64ToString(body('Transform_XML')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML')?['$content'])),indexOf(base64ToString(body('Transform_XML')?['$content']), '<')))))"
+                                    "CanonicalId": "@body('Parse_Message')?['CanonicalId']",
+                                    "PartnerDocumentData": "@variables('TransformedXml')",
+                                    "ConversionType": "@variables('ConversionType')"
                                 }
                             },
                             "serviceProviderConfiguration": {
@@ -93,7 +320,7 @@
                             }
                         },
                         "runAfter": {
-                            "Validate_XML": [
+                            "Route_By_ConversionType": [
                                 "SUCCEEDED"
                             ]
                         }
@@ -102,16 +329,17 @@
                         "type": "ServiceProvider",
                         "inputs": {
                             "parameters": {
-                                "entityName": "ksef-xml-ready-for-submission",
+                                "entityName": "partner-xml-ready-for-submission",
                                 "message": {
                                     "contentData": {
-                                        "PartnerSubmissionId": "@body('Upsert_PartnerSubmission')?[0]?[0]?['SubmissionId']"
+                                        "PartnerSubmissionId": "@body('Upsert_PartnerSubmission')?[0]?[0]?['SubmissionId']",
+                                        "ConversionType": "@variables('ConversionType')"
                                     },
-                                    "sessionId": "@string(body('Parse_CanonicalId')?['CanonicalId'])",
+                                    "sessionId": "@string(body('Parse_Message')?['CanonicalId'])",
                                     "messageId": "@guid()",
-                                    "correlationId": "@string(body('Parse_CanonicalId')?['CanonicalId'])"
+                                    "correlationId": "@string(body('Parse_Message')?['CanonicalId'])"
                                 },
-                                "queueName": "ksef-xml-ready-for-submission"
+                                "queueName": "partner-xml-ready-for-submission"
                             },
                             "serviceProviderConfiguration": {
                                 "connectionName": "serviceBus",
@@ -158,6 +386,23 @@
                 },
                 "runAfter": {
                     "Execute_a_SQL_query_(V2)": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Initialize_TransformedXml": {
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "TransformedXml",
+                            "type": "string",
+                            "value": ""
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Set_ConversionType": [
                         "SUCCEEDED"
                     ]
                 }

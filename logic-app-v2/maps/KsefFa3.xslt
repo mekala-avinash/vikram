@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   ===========================================================================
-  CanonicalInvoice to KSeF FA(3) XSLT   v6.0
+  CanonicalInvoice to KSeF FA(3) XSLT   v7.0
   ===========================================================================
   Target NS  : http://crd.gov.pl/wzor/2025/06/25/13775/
   Types NS   : http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2022/01/05/eD/DefinicjeTypy/
@@ -10,6 +10,18 @@
   Mandatory  : from 1 February 2026  (large taxpayers)
   Processor  : XSLT 1.0  (xsltproc, Saxon 6/HE, MSXML, Java Xalan)
   Author     : Trivikram
+  Changelog  : v7.0 — Full alignment with KSeF Excel spec v2.2
+               - Added corrective invoice support (DaneFaKorygowanej, PrzyczynaKorekty, TypKorekty)
+               - Added Zamowienia (customer order/PO numbers)
+               - Added TP (related party), FP (cash register) flags
+               - Added partial payment support (ZnacznikZaplatyCzesciowej, ZaplataCzesciowa)
+               - Added TerminOpis (payment term description: Ilosc, Jednostka, ZdarzeniePoczatkowe)
+               - Added P_13_10 (reverse charge net), P_13_6_3 (export 0% VAT)
+               - Added FaWiersz: P_12_Zal_15, KursWaluty, StanPrzed
+               - Podmiot1: hardcoded PrefiksPodatnika=PL per spec
+               - Podmiot3: added KodUE/NrVatUE, IDWew paths
+               - Stopka: structured Rejestry (KRS, REGON) + Informacje
+               - Multi-country ready: ConversionType routing handled at workflow level
   ===========================================================================
 -->
 <xsl:stylesheet version="1.0"
@@ -56,15 +68,26 @@
     </xsl:variable>
     <xsl:variable name="hasExempt"  select="count($L[normalize-space(Tax/Rate)='zw'])&gt;0"/>
     <xsl:variable name="hasOutside" select="count($L[normalize-space(Tax/Rate)='np I' or normalize-space(Tax/Rate)='np II' or normalize-space(Tax/Rate)='0 EX'])&gt;0"/>
+    <xsl:variable name="hasRC"      select="count($L[normalize-space(Tax/Rate)='oo' or normalize-space(Tax/Rate)='reverse_charge'])&gt;0"/>
+    <!-- Determine invoice type early for corrective invoice logic -->
+    <xsl:variable name="invType">
+      <xsl:choose>
+        <xsl:when test="normalize-space($H/InvoiceType)!=''"><xsl:call-template name="map-type"><xsl:with-param name="t" select="normalize-space($H/InvoiceType)"/></xsl:call-template></xsl:when>
+        <xsl:otherwise>VAT</xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name="isCorrectiveInv" select="$invType='KOR' or $invType='KOR_ZAL' or $invType='KOR_ROZ'"/>
 
     <xsl:if test="not($H/IssueDate) or normalize-space($H/IssueDate)=''"><xsl:message terminate="yes">FATAL: Header/IssueDate required.</xsl:message></xsl:if>
     <xsl:if test="not($H/InvoiceNumber) or normalize-space($H/InvoiceNumber)=''"><xsl:message terminate="yes">FATAL: Header/InvoiceNumber required.</xsl:message></xsl:if>
     <xsl:if test="not($S/TaxId) or normalize-space($S/TaxId)=''"><xsl:message terminate="yes">FATAL: Seller/TaxId required.</xsl:message></xsl:if>
-    <xsl:if test="$debug='true'"><xsl:message>DEBUG inv=<xsl:value-of select="$H/InvoiceNumber"/> lines=<xsl:value-of select="count($L)"/> ccy=<xsl:value-of select="$ccy"/> zrc=<xsl:value-of select="$zrc"/></xsl:message></xsl:if>
+    <xsl:if test="$debug='true'"><xsl:message>DEBUG inv=<xsl:value-of select="$H/InvoiceNumber"/> lines=<xsl:value-of select="count($L)"/> ccy=<xsl:value-of select="$ccy"/> zrc=<xsl:value-of select="$zrc"/> type=<xsl:value-of select="$invType"/></xsl:message></xsl:if>
 
     <Faktura>
 
-      <!-- NAGLOWEK -->
+      <!-- ================================================================
+           NAGLOWEK (Header)
+           ================================================================ -->
       <Naglowek>
         <KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
         <WariantFormularza>3</WariantFormularza>
@@ -72,9 +95,12 @@
         <SystemInfo><xsl:choose><xsl:when test="$system-info!=''"><xsl:value-of select="$system-info"/></xsl:when><xsl:when test="normalize-space($H/SystemInfo)!=''"><xsl:value-of select="normalize-space($H/SystemInfo)"/></xsl:when><xsl:otherwise>CanonicalInvoice_FA3_v4</xsl:otherwise></xsl:choose></SystemInfo>
       </Naglowek>
 
-      <!-- PODMIOT1 -->
+      <!-- ================================================================
+           PODMIOT1 (Seller)
+           ================================================================ -->
       <Podmiot1>
-        <xsl:if test="normalize-space($S/VATPrefix)!=''"><PrefiksPodatnika><xsl:value-of select="normalize-space($S/VATPrefix)"/></PrefiksPodatnika></xsl:if>
+        <!-- PrefiksPodatnika: Excel spec says always PL -->
+        <PrefiksPodatnika><xsl:choose><xsl:when test="normalize-space($S/VATPrefix)!=''"><xsl:value-of select="normalize-space($S/VATPrefix)"/></xsl:when><xsl:otherwise>PL</xsl:otherwise></xsl:choose></PrefiksPodatnika>
         <xsl:if test="normalize-space($S/EORI)!=''"><NrEORI><xsl:value-of select="normalize-space($S/EORI)"/></NrEORI></xsl:if>
         <DaneIdentyfikacyjne>
           <xsl:variable name="sRaw" select="normalize-space($S/TaxId)"/>
@@ -103,7 +129,9 @@
         <xsl:if test="normalize-space($S/StatusInfo)!=''"><StatusInfoPodatnika><xsl:value-of select="normalize-space($S/StatusInfo)"/></StatusInfoPodatnika></xsl:if>
       </Podmiot1>
 
-      <!-- PODMIOT2 -->
+      <!-- ================================================================
+           PODMIOT2 (Buyer)
+           ================================================================ -->
       <Podmiot2>
         <xsl:if test="normalize-space($B/EORI)!=''"><NrEORI><xsl:value-of select="normalize-space($B/EORI)"/></NrEORI></xsl:if>
         <DaneIdentyfikacyjne>
@@ -146,14 +174,37 @@
         <GV><xsl:choose><xsl:when test="normalize-space($B/GV)='1'">1</xsl:when><xsl:otherwise>2</xsl:otherwise></xsl:choose></GV>
       </Podmiot2>
 
-      <!-- PODMIOT3 -->
+      <!-- ================================================================
+           PODMIOT3 (Third Parties)
+           ================================================================ -->
       <xsl:for-each select="Parties/ThirdParty">
         <Podmiot3>
           <DaneIdentyfikacyjne>
             <xsl:variable name="pt" select="normalize-space(TaxId)"/>
+            <xsl:variable name="ptEuVat" select="normalize-space(EUVATNumber)"/>
+            <xsl:variable name="ptC" select="normalize-space(Address/Country)"/>
+            <xsl:variable name="ptIsEU" select="contains($eu-countries, concat('|',$ptC,'|'))"/>
             <xsl:choose>
-              <xsl:when test="string-length($pt)=10 and translate($pt,'0123456789','')=''"><NIP><xsl:value-of select="$pt"/></NIP></xsl:when>
-              <xsl:when test="$pt!=''"><NrID><xsl:value-of select="$pt"/></NrID></xsl:when>
+              <!-- Polish NIP -->
+              <xsl:when test="string-length($pt)=10 and translate($pt,'0123456789','')=''">
+                <NIP><xsl:value-of select="$pt"/></NIP>
+                <xsl:if test="normalize-space(InternalId)!=''"><IDWew><xsl:value-of select="normalize-space(InternalId)"/></IDWew></xsl:if>
+              </xsl:when>
+              <!-- EU VAT Number -->
+              <xsl:when test="$ptEuVat!='' or ($pt!='' and $ptIsEU and $ptC!='PL')">
+                <KodUE><xsl:choose><xsl:when test="normalize-space(EUPrefix)!=''"><xsl:value-of select="normalize-space(EUPrefix)"/></xsl:when><xsl:when test="$ptC!=''"><xsl:value-of select="$ptC"/></xsl:when></xsl:choose></KodUE>
+                <NrVatUE><xsl:choose>
+                  <xsl:when test="$ptEuVat!='' and starts-with($ptEuVat,$ptC)"><xsl:value-of select="substring($ptEuVat,string-length($ptC)+1)"/></xsl:when>
+                  <xsl:when test="$ptEuVat!=''"><xsl:value-of select="$ptEuVat"/></xsl:when>
+                  <xsl:when test="starts-with($pt,$ptC)"><xsl:value-of select="substring($pt,string-length($ptC)+1)"/></xsl:when>
+                  <xsl:otherwise><xsl:value-of select="$pt"/></xsl:otherwise>
+                </xsl:choose></NrVatUE>
+              </xsl:when>
+              <!-- Non-EU foreign ID -->
+              <xsl:when test="$pt!=''">
+                <xsl:if test="$ptC!='' and $ptC!='PL'"><KodKraju><xsl:value-of select="$ptC"/></KodKraju></xsl:if>
+                <NrID><xsl:value-of select="$pt"/></NrID>
+              </xsl:when>
               <xsl:otherwise><BrakID>1</BrakID></xsl:otherwise>
             </xsl:choose>
             <xsl:if test="normalize-space(Name)!=''"><Nazwa><xsl:value-of select="normalize-space(Name)"/></Nazwa></xsl:if>
@@ -166,14 +217,26 @@
               <xsl:if test="normalize-space($pL2)!=''"><AdresL2><xsl:value-of select="normalize-space($pL2)"/></AdresL2></xsl:if>
             </Adres>
           </xsl:if>
-          <Rola><xsl:call-template name="map-role"><xsl:with-param name="r" select="normalize-space(Role)"/></xsl:call-template></Rola>
+          <!-- Rola -->
+          <xsl:choose>
+            <xsl:when test="normalize-space(RolaInna)='1' or normalize-space(RolaInna)='true'">
+              <RolaInna>1</RolaInna>
+              <xsl:if test="normalize-space(OpisRoli)!=''"><OpisRoli><xsl:value-of select="normalize-space(OpisRoli)"/></OpisRoli></xsl:if>
+            </xsl:when>
+            <xsl:otherwise>
+              <Rola><xsl:call-template name="map-role"><xsl:with-param name="r" select="normalize-space(Role)"/></xsl:call-template></Rola>
+            </xsl:otherwise>
+          </xsl:choose>
         </Podmiot3>
       </xsl:for-each>
 
-      <!-- FA -->
+      <!-- ================================================================
+           FA (Invoice Core)
+           ================================================================ -->
       <Fa>
         <KodWaluty><xsl:choose><xsl:when test="$ccy!=''"><xsl:value-of select="$ccy"/></xsl:when><xsl:otherwise>PLN</xsl:otherwise></xsl:choose></KodWaluty>
         <P_1><xsl:value-of select="$H/IssueDate"/></P_1>
+        <!-- P_1M: Invoice issue location (Excel: constant per branch) -->
         <xsl:if test="normalize-space($H/IssuePlace)!=''"><P_1M><xsl:value-of select="normalize-space($H/IssuePlace)"/></P_1M></xsl:if>
         <P_2><xsl:value-of select="$H/InvoiceNumber"/></P_2>
         <xsl:if test="normalize-space($H/SaleDate)!='' and normalize-space($H/SaleDate)!=normalize-space($H/IssueDate)"><P_6><xsl:value-of select="normalize-space($H/SaleDate)"/></P_6></xsl:if>
@@ -185,7 +248,7 @@
           <xsl:with-param name="zrc" select="$zrc"/><xsl:with-param name="isFX" select="$isFX"/>
         </xsl:call-template>
 
-        <!-- P_15 -->
+        <!-- P_15: Total gross amount -->
         <P_15>
           <xsl:variable name="g" select="number(normalize-space($SM/TotalGrossAmount))"/>
           <xsl:variable name="n" select="number(normalize-space($SM/TotalNetAmount))"/>
@@ -200,13 +263,22 @@
           </xsl:choose>
         </P_15>
 
+        <!-- KursWalutyZ: Exchange rate for foreign currency invoices -->
         <xsl:if test="$isFX and normalize-space($H/ExchangeRate)!=''"><KursWalutyZ><xsl:value-of select="normalize-space($H/ExchangeRate)"/></KursWalutyZ></xsl:if>
 
-        <!-- ADNOTACJE (FA(3) structure with wrapper elements) -->
+        <!-- FP: Cash register transaction flag (Excel: N/A for eLIMS Legacy, empty if not used) -->
+        <xsl:if test="normalize-space($H/CashRegisterFlag)='1' or normalize-space($H/FP)='1'"><FP>1</FP></xsl:if>
+
+        <!-- TP: Entity relationship indicator (Excel: 1 if related party / Eurofins group) -->
+        <xsl:if test="normalize-space($H/RelatedParty)='true' or normalize-space($H/RelatedParty)='1' or normalize-space($H/TP)='1' or normalize-space($B/IsRelatedParty)='true' or normalize-space($B/IsRelatedParty)='1'"><TP>1</TP></xsl:if>
+
+        <!-- ================================================================
+             ADNOTACJE (Regulatory Annotations)
+             ================================================================ -->
         <Adnotacje>
           <P_16><xsl:call-template name="fl"><xsl:with-param name="v" select="$H/SelfBilling"/></xsl:call-template></P_16>
           <P_17><xsl:call-template name="fl"><xsl:with-param name="v" select="$H/ReverseCharge"/></xsl:call-template></P_17>
-          <P_18><xsl:choose><xsl:when test="$hasOutside or normalize-space($H/IntraCommunitySupply)='true' or normalize-space($H/IntraCommunitySupply)='1'">1</xsl:when><xsl:otherwise>2</xsl:otherwise></xsl:choose></P_18>
+          <P_18><xsl:choose><xsl:when test="$hasOutside or $hasRC or normalize-space($H/IntraCommunitySupply)='true' or normalize-space($H/IntraCommunitySupply)='1'">1</xsl:when><xsl:otherwise>2</xsl:otherwise></xsl:choose></P_18>
           <P_18A><xsl:call-template name="fl"><xsl:with-param name="v" select="$H/SplitPayment"/></xsl:call-template></P_18A>
           <Zwolnienie><xsl:choose>
             <xsl:when test="$hasExempt or normalize-space($H/ExemptionApplies)='true' or normalize-space($H/ExemptionApplies)='1'">
@@ -228,14 +300,92 @@
         </Adnotacje>
 
         <!-- RodzajFaktury (after Adnotacje per XSD) -->
-        <RodzajFaktury><xsl:choose>
-          <xsl:when test="normalize-space($H/InvoiceType)!=''"><xsl:call-template name="map-type"><xsl:with-param name="t" select="normalize-space($H/InvoiceType)"/></xsl:call-template></xsl:when>
-          <xsl:otherwise>VAT</xsl:otherwise>
-        </xsl:choose></RodzajFaktury>
+        <RodzajFaktury><xsl:value-of select="$invType"/></RodzajFaktury>
 
+        <!-- ================================================================
+             DaneFaKorygowanej (Corrective Invoice Data)
+             Only emitted for KOR / KOR_ZAL / KOR_ROZ invoice types
+             ================================================================ -->
+        <!--
+          XSD order for corrective invoice sequence:
+          1. PrzyczynaKorekty (optional)
+          2. TypKorekty (optional)
+          3. DaneFaKorygowanej (required, repeatable)
+             - DataWystFaKorygowanej
+             - NrFaKorygowanej
+             - choice: (NrKSeF + NrKSeFFaKorygowanej) OR NrKSeFN
+          4. OkresFaKorygowanej (optional)
+          5. NrFaKorygowany (optional)
+          6. Podmiot1K (optional)
+          7. Podmiot2K (optional)
+        -->
+        <xsl:if test="$isCorrectiveInv">
+          <!-- 1. PrzyczynaKorekty: Reason for correction (BEFORE DaneFaKorygowanej per XSD) -->
+          <PrzyczynaKorekty><xsl:choose>
+            <xsl:when test="normalize-space($H/CorrectionReason)!=''"><xsl:value-of select="normalize-space($H/CorrectionReason)"/></xsl:when>
+            <xsl:otherwise>Korekta całkowita – wycofanie faktury</xsl:otherwise>
+          </xsl:choose></PrzyczynaKorekty>
+
+          <!-- 2. TypKorekty: Type of correction effect (1 = date of original entry, 2 = date of correction) -->
+          <TypKorekty><xsl:choose>
+            <xsl:when test="normalize-space($H/CorrectionType)!=''"><xsl:value-of select="normalize-space($H/CorrectionType)"/></xsl:when>
+            <xsl:otherwise>1</xsl:otherwise>
+          </xsl:choose></TypKorekty>
+
+          <!-- 3. DaneFaKorygowanej -->
+          <DaneFaKorygowanej>
+            <DataWystFaKorygowanej><xsl:choose>
+              <xsl:when test="normalize-space($H/CorrectedInvoiceDate)!=''"><xsl:value-of select="normalize-space($H/CorrectedInvoiceDate)"/></xsl:when>
+              <xsl:otherwise><xsl:value-of select="$H/IssueDate"/></xsl:otherwise>
+            </xsl:choose></DataWystFaKorygowanej>
+            <NrFaKorygowanej><xsl:choose>
+              <xsl:when test="normalize-space($H/CorrectedInvoiceNumber)!=''"><xsl:value-of select="normalize-space($H/CorrectedInvoiceNumber)"/></xsl:when>
+              <xsl:otherwise><xsl:value-of select="$H/InvoiceNumber"/></xsl:otherwise>
+            </xsl:choose></NrFaKorygowanej>
+            <!--
+              Choice: NrKSeF(=1) + NrKSeFFaKorygowanej (both mandatory in this branch)
+                  OR  NrKSeFN(=1) (issued outside KSeF)
+            -->
+            <xsl:choose>
+              <xsl:when test="normalize-space($H/CorrectedKSeFInvoiceNumber)!=''">
+                <!-- Original was issued in KSeF — NrKSeF=1 + the KSeF number -->
+                <NrKSeF>1</NrKSeF>
+                <NrKSeFFaKorygowanej><xsl:value-of select="normalize-space($H/CorrectedKSeFInvoiceNumber)"/></NrKSeFFaKorygowanej>
+              </xsl:when>
+              <xsl:otherwise>
+                <!-- Original was NOT issued in KSeF -->
+                <NrKSeFN>1</NrKSeFN>
+              </xsl:otherwise>
+            </xsl:choose>
+          </DaneFaKorygowanej>
+
+          <!-- 4. OkresFaKorygowanej (optional) -->
+          <xsl:if test="normalize-space($H/CorrectionPeriod)!=''">
+            <OkresFaKorygowanej><xsl:value-of select="normalize-space($H/CorrectionPeriod)"/></OkresFaKorygowanej>
+          </xsl:if>
+
+          <!-- 5. NrFaKorygowany (corrected invoice number if original had a typo) -->
+          <xsl:if test="normalize-space($H/CorrectedInvoiceNumberFixed)!=''">
+            <NrFaKorygowany><xsl:value-of select="normalize-space($H/CorrectedInvoiceNumberFixed)"/></NrFaKorygowany>
+          </xsl:if>
+
+          <!-- 7. Podmiot2K: Buyer data on the corrected invoice (if different) -->
+          <xsl:if test="$H/CorrectedBuyer">
+            <Podmiot2K>
+              <DaneIdentyfikacyjne>
+                <xsl:if test="normalize-space($H/CorrectedBuyer/NIP)!=''"><NIP><xsl:value-of select="normalize-space($H/CorrectedBuyer/NIP)"/></NIP></xsl:if>
+                <xsl:if test="normalize-space($H/CorrectedBuyer/Name)!=''"><Nazwa><xsl:value-of select="normalize-space($H/CorrectedBuyer/Name)"/></Nazwa></xsl:if>
+              </DaneIdentyfikacyjne>
+            </Podmiot2K>
+          </xsl:if>
+        </xsl:if>
+
+        <!-- DodatkowyOpis (Additional Description) -->
         <xsl:for-each select="$H/AdditionalInfo"><DodatkowyOpis><Klucz><xsl:value-of select="Key"/></Klucz><Wartosc><xsl:value-of select="Value"/></Wartosc></DodatkowyOpis></xsl:for-each>
 
-        <!-- FaWiersz (line items) -->
+        <!-- ================================================================
+             FaWiersz (Line Items)
+             ================================================================ -->
         <xsl:for-each select="$L">
           <xsl:variable name="rr" select="normalize-space(Tax/Rate)"/>
           <xsl:variable name="ta" select="number(normalize-space(Tax/Amount))"/>
@@ -265,22 +415,116 @@
               <xsl:when test="$rr='not_subject' or $rr='np'">np I</xsl:when>
               <xsl:otherwise><xsl:value-of select="$rr"/></xsl:otherwise>
             </xsl:choose></P_12></xsl:if>
+            <!-- P_12_Zal_15: Annex 15 goods/services (specific group) -->
+            <xsl:if test="normalize-space(P12Zal15)!='' or normalize-space(AnnexGroup)!=''">
+              <P_12_Zal_15><xsl:choose>
+                <xsl:when test="normalize-space(P12Zal15)!=''"><xsl:value-of select="normalize-space(P12Zal15)"/></xsl:when>
+                <xsl:otherwise><xsl:value-of select="normalize-space(AnnexGroup)"/></xsl:otherwise>
+              </xsl:choose></P_12_Zal_15>
+            </xsl:if>
             <xsl:if test="normalize-space(GTUCode)!=''"><GTU><xsl:value-of select="normalize-space(GTUCode)"/></GTU></xsl:if>
             <xsl:if test="normalize-space(Procedure)!=''"><Procedura><xsl:value-of select="normalize-space(Procedure)"/></Procedura></xsl:if>
+            <!-- KursWaluty: Line-level exchange rate (if different from header) -->
+            <xsl:if test="normalize-space(ExchangeRate)!=''"><KursWaluty><xsl:value-of select="normalize-space(ExchangeRate)"/></KursWaluty></xsl:if>
+            <!-- StanPrzed: Quantity before correction (corrective invoices only) -->
+            <xsl:if test="normalize-space(QuantityBefore)!=''"><StanPrzed><xsl:value-of select="normalize-space(QuantityBefore)"/></StanPrzed></xsl:if>
           </FaWiersz>
         </xsl:for-each>
 
-        <!-- PLATNOSC -->
+        <!-- ================================================================
+             Rozliczenie (Settlement/adjustment charges)
+             ================================================================ -->
+        <xsl:if test="Settlement">
+          <Rozliczenie>
+            <xsl:for-each select="Settlement/Item">
+              <xsl:if test="normalize-space(Amount)!=''">
+                <Obciazenia><Kwota><xsl:value-of select="normalize-space(Amount)"/></Kwota><xsl:if test="normalize-space(Description)!=''"><Opis><xsl:value-of select="normalize-space(Description)"/></Opis></xsl:if></Obciazenia>
+              </xsl:if>
+            </xsl:for-each>
+          </Rozliczenie>
+        </xsl:if>
+
+        <!-- ================================================================
+             PLATNOSC (Payment)
+             ================================================================ -->
         <xsl:variable name="pDue"><xsl:choose><xsl:when test="normalize-space($P/DueDate)!=''"><xsl:value-of select="normalize-space($P/DueDate)"/></xsl:when><xsl:otherwise><xsl:value-of select="normalize-space($H/DueDate)"/></xsl:otherwise></xsl:choose></xsl:variable>
         <xsl:variable name="pMeth"><xsl:choose><xsl:when test="normalize-space($P/Method)!=''"><xsl:value-of select="normalize-space($P/Method)"/></xsl:when><xsl:otherwise><xsl:value-of select="normalize-space($H/PaymentMethod)"/></xsl:otherwise></xsl:choose></xsl:variable>
         <xsl:variable name="pAcct"><xsl:choose><xsl:when test="normalize-space($P/BankAccount/AccountNumber)!=''"><xsl:value-of select="normalize-space($P/BankAccount/AccountNumber)"/></xsl:when><xsl:otherwise><xsl:value-of select="normalize-space($H/BankAccount)"/></xsl:otherwise></xsl:choose></xsl:variable>
-        <xsl:variable name="isPaid" select="normalize-space($H/PaidFlag)='1'"/>
+        <xsl:variable name="isPaid" select="normalize-space($H/PaidFlag)='1' or normalize-space($P/Paid)='1'"/>
 
-        <xsl:if test="$pDue!='' or $pMeth!='' or $pAcct!='' or $isPaid">
+        <xsl:if test="$pDue!='' or $pMeth!='' or $pAcct!='' or $isPaid or $P/PartialPayment">
           <Platnosc>
-            <xsl:if test="$isPaid"><Zaplacono>1</Zaplacono><DataZaplaty><xsl:choose><xsl:when test="normalize-space($H/PaymentDate)!=''"><xsl:value-of select="normalize-space($H/PaymentDate)"/></xsl:when><xsl:otherwise><xsl:value-of select="$H/IssueDate"/></xsl:otherwise></xsl:choose></DataZaplaty></xsl:if>
-            <xsl:if test="$pDue!=''"><TerminPlatnosci><Termin><xsl:value-of select="$pDue"/></Termin></TerminPlatnosci></xsl:if>
+            <!--
+              XSD element order for Platnosc:
+              1. choice: Zaplacono+DataZaplaty  OR  ZnacznikZaplatyCzesciowej+ZaplataCzesciowa
+              2. TerminPlatnosci (0..100)
+              3. choice: FormaPlatnosci  OR  PlatnoscInna+OpisPlatnosci
+              4. RachunekBankowy (0..100)
+              5. RachunekBankowyFaktora (0..20)
+              6. Skonto
+              7. LinkDoPlatnosci
+              8. IPKSeF
+            -->
+
+            <!-- 1. Payment status choice (Zaplacono is TWybor1 = only value "1", omit if not paid) -->
+            <xsl:choose>
+              <xsl:when test="normalize-space($P/PartialPaymentFlag)='1' or $P/PartialPayment">
+                <!-- Partial payment path -->
+                <ZnacznikZaplatyCzesciowej><xsl:choose>
+                  <xsl:when test="normalize-space($P/PartialPaymentFlag)!=''"><xsl:value-of select="normalize-space($P/PartialPaymentFlag)"/></xsl:when>
+                  <xsl:otherwise>1</xsl:otherwise>
+                </xsl:choose></ZnacznikZaplatyCzesciowej>
+                <xsl:for-each select="$P/PartialPayment">
+                  <ZaplataCzesciowa>
+                    <KwotaZaplatyCzesciowej><xsl:value-of select="normalize-space(Amount)"/></KwotaZaplatyCzesciowej>
+                    <DataZaplatyCzesciowej><xsl:value-of select="normalize-space(Date)"/></DataZaplatyCzesciowej>
+                    <xsl:choose>
+                      <xsl:when test="normalize-space(OtherPaymentFlag)='1'">
+                        <PlatnoscInna>1</PlatnoscInna>
+                        <xsl:if test="normalize-space(OtherPaymentDescription)!=''"><OpisPlatnosci><xsl:value-of select="normalize-space(OtherPaymentDescription)"/></OpisPlatnosci></xsl:if>
+                      </xsl:when>
+                      <xsl:when test="normalize-space(Method)!=''">
+                        <FormaPlatnosci><xsl:call-template name="map-pay"><xsl:with-param name="m" select="normalize-space(Method)"/></xsl:call-template></FormaPlatnosci>
+                      </xsl:when>
+                    </xsl:choose>
+                  </ZaplataCzesciowa>
+                </xsl:for-each>
+              </xsl:when>
+              <xsl:when test="$isPaid">
+                <!-- Fully paid path (Zaplacono=1 only; omit entirely if not paid) -->
+                <Zaplacono>1</Zaplacono>
+                <DataZaplaty><xsl:choose><xsl:when test="normalize-space($H/PaymentDate)!=''"><xsl:value-of select="normalize-space($H/PaymentDate)"/></xsl:when><xsl:when test="normalize-space($P/PaymentDate)!=''"><xsl:value-of select="normalize-space($P/PaymentDate)"/></xsl:when><xsl:otherwise><xsl:value-of select="$H/IssueDate"/></xsl:otherwise></xsl:choose></DataZaplaty>
+              </xsl:when>
+              <!-- else: not paid, no partial → omit the choice entirely -->
+            </xsl:choose>
+
+            <!-- 2. TerminPlatnosci -->
+            <xsl:if test="$pDue!=''">
+              <TerminPlatnosci>
+                <Termin><xsl:value-of select="$pDue"/></Termin>
+                <!-- TerminOpis: Structured payment term description (Excel: Ilosc, Jednostka, ZdarzeniePoczatkowe) -->
+                <xsl:if test="normalize-space($P/TermDescription/Days)!='' or normalize-space($P/PaymentDays)!=''">
+                  <TerminOpis>
+                    <Ilosc><xsl:choose>
+                      <xsl:when test="normalize-space($P/TermDescription/Days)!=''"><xsl:value-of select="normalize-space($P/TermDescription/Days)"/></xsl:when>
+                      <xsl:otherwise><xsl:value-of select="normalize-space($P/PaymentDays)"/></xsl:otherwise>
+                    </xsl:choose></Ilosc>
+                    <Jednostka><xsl:choose>
+                      <xsl:when test="normalize-space($P/TermDescription/Unit)!=''"><xsl:value-of select="normalize-space($P/TermDescription/Unit)"/></xsl:when>
+                      <xsl:otherwise>Dni</xsl:otherwise>
+                    </xsl:choose></Jednostka>
+                    <xsl:if test="normalize-space($P/TermDescription/StartEvent)!=''">
+                      <ZdarzeniePoczatkowe><xsl:value-of select="normalize-space($P/TermDescription/StartEvent)"/></ZdarzeniePoczatkowe>
+                    </xsl:if>
+                  </TerminOpis>
+                </xsl:if>
+              </TerminPlatnosci>
+            </xsl:if>
+
+            <!-- 3. FormaPlatnosci (top-level, not inside partial payment) -->
             <FormaPlatnosci><xsl:call-template name="map-pay"><xsl:with-param name="m"><xsl:choose><xsl:when test="$pMeth!=''"><xsl:value-of select="$pMeth"/></xsl:when><xsl:otherwise>6</xsl:otherwise></xsl:choose></xsl:with-param></xsl:call-template></FormaPlatnosci>
+
+            <!-- 4. RachunekBankowy -->
             <xsl:if test="$pAcct!=''">
               <RachunekBankowy>
                 <NrRB><xsl:value-of select="$pAcct"/></NrRB>
@@ -289,32 +533,92 @@
                 <xsl:if test="normalize-space($P/BankAccount/Description)!=''"><OpisRachunku><xsl:value-of select="normalize-space($P/BankAccount/Description)"/></OpisRachunku></xsl:if>
               </RachunekBankowy>
             </xsl:if>
-            <xsl:if test="normalize-space($P/Description)!=''"><OpisZaplaty><xsl:value-of select="normalize-space($P/Description)"/></OpisZaplaty></xsl:if>
+
+            <!-- 7. LinkDoPlatnosci -->
             <xsl:if test="normalize-space($P/PaymentLink)!=''"><LinkDoPlatnosci><xsl:value-of select="normalize-space($P/PaymentLink)"/></LinkDoPlatnosci></xsl:if>
           </Platnosc>
         </xsl:if>
 
-        <!-- WarunkiTransakcji -->
-        <xsl:if test="Parties/ThirdParty[normalize-space(Role)='delivery' or normalize-space(Role)='2']">
-          <xsl:variable name="dl" select="Parties/ThirdParty[normalize-space(Role)='delivery' or normalize-space(Role)='2'][1]"/>
-          <WarunkiTransakcji><Transport><WysylkaDo>
-            <KodKraju><xsl:choose><xsl:when test="normalize-space($dl/Address/Country)!=''"><xsl:value-of select="normalize-space($dl/Address/Country)"/></xsl:when><xsl:otherwise>PL</xsl:otherwise></xsl:choose></KodKraju>
-            <AdresL1><xsl:call-template name="addr1"><xsl:with-param name="a" select="$dl/Address"/></xsl:call-template></AdresL1>
-            <xsl:variable name="dlL2"><xsl:call-template name="addr2"><xsl:with-param name="a" select="$dl/Address"/></xsl:call-template></xsl:variable>
-            <xsl:if test="normalize-space($dlL2)!=''"><AdresL2><xsl:value-of select="normalize-space($dlL2)"/></AdresL2></xsl:if>
-          </WysylkaDo><TransportInny><OpisInnegoTransportu>wg ustalenia/umowy</OpisInnegoTransportu></TransportInny></Transport></WarunkiTransakcji>
+        <!-- ================================================================
+             WarunkiTransakcji (Transaction Conditions)
+             ================================================================ -->
+        <xsl:if test="Parties/ThirdParty[normalize-space(Role)='delivery' or normalize-space(Role)='2'] or Orders/Order">
+          <WarunkiTransakcji>
+            <!-- Zamowienia: Customer order/PO numbers -->
+            <xsl:for-each select="Orders/Order">
+              <Zamowienia>
+                <xsl:if test="normalize-space(OrderDate)!=''"><DataZamowienia><xsl:value-of select="normalize-space(OrderDate)"/></DataZamowienia></xsl:if>
+                <xsl:if test="normalize-space(OrderNumber)!=''"><NrZamowienia><xsl:value-of select="normalize-space(OrderNumber)"/></NrZamowienia></xsl:if>
+              </Zamowienia>
+            </xsl:for-each>
+            <!-- Single PO from Header (backward compatible) -->
+            <xsl:if test="not(Orders/Order) and normalize-space($H/PurchaseOrderNumber)!=''">
+              <Zamowienia>
+                <xsl:if test="normalize-space($H/PurchaseOrderDate)!=''"><DataZamowienia><xsl:value-of select="normalize-space($H/PurchaseOrderDate)"/></DataZamowienia></xsl:if>
+                <NrZamowienia><xsl:value-of select="normalize-space($H/PurchaseOrderNumber)"/></NrZamowienia>
+              </Zamowienia>
+            </xsl:if>
+            <!-- Transport/Delivery -->
+            <xsl:if test="Parties/ThirdParty[normalize-space(Role)='delivery' or normalize-space(Role)='2']">
+              <xsl:variable name="dl" select="Parties/ThirdParty[normalize-space(Role)='delivery' or normalize-space(Role)='2'][1]"/>
+              <Transport><WysylkaDo>
+                <KodKraju><xsl:choose><xsl:when test="normalize-space($dl/Address/Country)!=''"><xsl:value-of select="normalize-space($dl/Address/Country)"/></xsl:when><xsl:otherwise>PL</xsl:otherwise></xsl:choose></KodKraju>
+                <AdresL1><xsl:call-template name="addr1"><xsl:with-param name="a" select="$dl/Address"/></xsl:call-template></AdresL1>
+                <xsl:variable name="dlL2"><xsl:call-template name="addr2"><xsl:with-param name="a" select="$dl/Address"/></xsl:call-template></xsl:variable>
+                <xsl:if test="normalize-space($dlL2)!=''"><AdresL2><xsl:value-of select="normalize-space($dlL2)"/></AdresL2></xsl:if>
+              </WysylkaDo><TransportInny><OpisInnegoTransportu>wg ustalenia/umowy</OpisInnegoTransportu></TransportInny></Transport>
+            </xsl:if>
+          </WarunkiTransakcji>
+        </xsl:if>
+
+        <!-- ================================================================
+             Zaliczka czeSciowa (Advance Invoice - if applicable)
+             ================================================================ -->
+        <xsl:if test="$invType='ZAL' and normalize-space($H/AdvanceReceiptDate)!=''">
+          <ZaliczkaCzesciowa>
+            <P_6Z><xsl:value-of select="normalize-space($H/AdvanceReceiptDate)"/></P_6Z>
+            <xsl:if test="normalize-space($H/AdvanceAmount)!=''"><P_15Z><xsl:value-of select="normalize-space($H/AdvanceAmount)"/></P_15Z></xsl:if>
+          </ZaliczkaCzesciowa>
+        </xsl:if>
+
+        <!-- FakturaZaliczkowa: Reference to prior advance invoice -->
+        <xsl:if test="$H/AdvanceInvoice">
+          <FakturaZaliczkowa>
+            <xsl:choose>
+              <xsl:when test="normalize-space($H/AdvanceInvoice/KSeFNumber)!=''">
+                <NrKSeFZN>0</NrKSeFZN>
+                <NrKSeFFaZaliczkowej><xsl:value-of select="normalize-space($H/AdvanceInvoice/KSeFNumber)"/></NrKSeFFaZaliczkowej>
+              </xsl:when>
+              <xsl:when test="normalize-space($H/AdvanceInvoice/InvoiceNumber)!=''">
+                <NrKSeFZN>1</NrKSeFZN>
+                <NrFaZaliczkowej><xsl:value-of select="normalize-space($H/AdvanceInvoice/InvoiceNumber)"/></NrFaZaliczkowej>
+              </xsl:when>
+            </xsl:choose>
+          </FakturaZaliczkowa>
         </xsl:if>
       </Fa>
 
-      <!-- STOPKA -->
+      <!-- ================================================================
+           STOPKA (Footer)
+           ================================================================ -->
       <xsl:if test="Footer or $S/KRS or $S/REGON">
-        <Stopka><StopkaFaktury>
-          <xsl:if test="normalize-space($S/KRS)!=''">KRS: <xsl:value-of select="normalize-space($S/KRS)"/></xsl:if>
-          <xsl:if test="normalize-space($S/KRS)!='' and normalize-space($S/REGON)!=''"> | </xsl:if>
-          <xsl:if test="normalize-space($S/REGON)!=''">REGON: <xsl:value-of select="normalize-space($S/REGON)"/></xsl:if>
-          <xsl:if test="(normalize-space($S/KRS)!='' or normalize-space($S/REGON)!='') and normalize-space(Footer/Text)!=''"> | </xsl:if>
-          <xsl:if test="normalize-space(Footer/Text)!=''"><xsl:value-of select="normalize-space(Footer/Text)"/></xsl:if>
-        </StopkaFaktury></Stopka>
+        <Stopka>
+          <!-- Rejestry: KRS and REGON per Excel spec -->
+          <xsl:if test="normalize-space($S/KRS)!='' or normalize-space($S/REGON)!=''">
+            <Rejestry>
+              <xsl:if test="normalize-space($S/KRS)!=''"><KRS><xsl:value-of select="normalize-space($S/KRS)"/></KRS></xsl:if>
+              <xsl:if test="normalize-space($S/REGON)!=''"><REGON><xsl:value-of select="normalize-space($S/REGON)"/></REGON></xsl:if>
+            </Rejestry>
+          </xsl:if>
+          <!-- Informacje: Additional text/info -->
+          <xsl:if test="normalize-space(Footer/Text)!=''">
+            <Informacje><xsl:value-of select="normalize-space(Footer/Text)"/></Informacje>
+          </xsl:if>
+          <!-- StopkaFaktury: backward compatible free-text footer -->
+          <xsl:if test="normalize-space(Footer/StopkaFaktury)!=''">
+            <StopkaFaktury><xsl:value-of select="normalize-space(Footer/StopkaFaktury)"/></StopkaFaktury>
+          </xsl:if>
+        </Stopka>
       </xsl:if>
     </Faktura>
   </xsl:template>
@@ -326,18 +630,37 @@
     <xsl:param name="L"/><xsl:param name="SM"/><xsl:param name="zrc"/><xsl:param name="isFX"/>
     <xsl:choose>
       <xsl:when test="$SM/TaxBreakdown/TaxLine">
+        <!-- 23% -->
         <xsl:variable name="n23" select="sum($SM/TaxBreakdown/TaxLine[Rate='23']/NetAmount)"/><xsl:variable name="t23" select="sum($SM/TaxBreakdown/TaxLine[Rate='23']/TaxAmount)"/><xsl:variable name="t23w" select="sum($SM/TaxBreakdown/TaxLine[Rate='23']/TaxAmountPLN)"/>
         <xsl:if test="$n23&gt;0 or $t23&gt;0"><P_13_1><xsl:value-of select="format-number($n23,'0.00')"/></P_13_1><P_14_1><xsl:value-of select="format-number($t23,'0.00')"/></P_14_1><xsl:if test="$isFX and $t23w=$t23w and $t23w!=0"><P_14_1W><xsl:value-of select="format-number($t23w,'0.00')"/></P_14_1W></xsl:if></xsl:if>
+        <!-- 8% -->
         <xsl:variable name="n8" select="sum($SM/TaxBreakdown/TaxLine[Rate='8']/NetAmount)"/><xsl:variable name="t8" select="sum($SM/TaxBreakdown/TaxLine[Rate='8']/TaxAmount)"/><xsl:variable name="t8w" select="sum($SM/TaxBreakdown/TaxLine[Rate='8']/TaxAmountPLN)"/>
         <xsl:if test="$n8&gt;0 or $t8&gt;0"><P_13_2><xsl:value-of select="format-number($n8,'0.00')"/></P_13_2><P_14_2><xsl:value-of select="format-number($t8,'0.00')"/></P_14_2><xsl:if test="$isFX and $t8w=$t8w and $t8w!=0"><P_14_2W><xsl:value-of select="format-number($t8w,'0.00')"/></P_14_2W></xsl:if></xsl:if>
+        <!-- 5% -->
         <xsl:variable name="n5" select="sum($SM/TaxBreakdown/TaxLine[Rate='5']/NetAmount)"/><xsl:variable name="t5" select="sum($SM/TaxBreakdown/TaxLine[Rate='5']/TaxAmount)"/><xsl:variable name="t5w" select="sum($SM/TaxBreakdown/TaxLine[Rate='5']/TaxAmountPLN)"/>
         <xsl:if test="$n5&gt;0 or $t5&gt;0"><P_13_3><xsl:value-of select="format-number($n5,'0.00')"/></P_13_3><P_14_3><xsl:value-of select="format-number($t5,'0.00')"/></P_14_3><xsl:if test="$isFX and $t5w=$t5w and $t5w!=0"><P_14_3W><xsl:value-of select="format-number($t5w,'0.00')"/></P_14_3W></xsl:if></xsl:if>
+        <!-- 0% — route to correct P_13 bucket based on zero rate code -->
         <xsl:variable name="n0" select="sum($SM/TaxBreakdown/TaxLine[Rate='0']/NetAmount)"/>
-        <xsl:if test="$n0&gt;0"><xsl:choose><xsl:when test="$zrc='0 WDT'"><P_13_6_2><xsl:value-of select="format-number($n0,'0.00')"/></P_13_6_2></xsl:when><xsl:when test="$zrc='0 EX'"><P_13_8><xsl:value-of select="format-number($n0,'0.00')"/></P_13_8></xsl:when><xsl:otherwise><P_13_6_1><xsl:value-of select="format-number($n0,'0.00')"/></P_13_6_1></xsl:otherwise></xsl:choose></xsl:if>
+        <xsl:if test="$n0&gt;0"><xsl:choose>
+          <xsl:when test="$zrc='0 WDT'"><P_13_6_2><xsl:value-of select="format-number($n0,'0.00')"/></P_13_6_2></xsl:when>
+          <xsl:when test="$zrc='0 EX'"><P_13_8><xsl:value-of select="format-number($n0,'0.00')"/></P_13_8></xsl:when>
+          <xsl:otherwise><P_13_6_1><xsl:value-of select="format-number($n0,'0.00')"/></P_13_6_1></xsl:otherwise>
+        </xsl:choose></xsl:if>
+        <!-- P_13_6_3: Explicit 0% export bucket (Excel spec row) -->
+        <xsl:variable name="n0ex" select="sum($SM/TaxBreakdown/TaxLine[Rate='0_EX']/NetAmount)"/>
+        <xsl:if test="$n0ex&gt;0"><P_13_6_3><xsl:value-of select="format-number($n0ex,'0.00')"/></P_13_6_3></xsl:if>
+        <!-- zw (exempt) -->
         <xsl:variable name="nZW" select="sum($SM/TaxBreakdown/TaxLine[Rate='zw']/NetAmount)"/>
         <xsl:if test="$nZW&gt;0"><P_13_7><xsl:value-of select="format-number($nZW,'0.00')"/></P_13_7></xsl:if>
+        <!-- P_13_9: np (outside scope) -->
+        <xsl:variable name="nNP" select="sum($SM/TaxBreakdown/TaxLine[Rate='np I' or Rate='np II']/NetAmount)"/>
+        <xsl:if test="$nNP&gt;0"><P_13_9><xsl:value-of select="format-number($nNP,'0.00')"/></P_13_9></xsl:if>
+        <!-- P_13_10: Reverse charge net amount -->
+        <xsl:variable name="nRC" select="sum($SM/TaxBreakdown/TaxLine[Rate='oo' or Rate='reverse_charge']/NetAmount)"/>
+        <xsl:if test="$nRC&gt;0"><P_13_10><xsl:value-of select="format-number($nRC,'0.00')"/></P_13_10></xsl:if>
       </xsl:when>
       <xsl:when test="$L">
+        <!-- Line-level aggregation fallback -->
         <xsl:variable name="ln23" select="sum($L[normalize-space(Tax/Rate)='23']/NetAmount)"/><xsl:variable name="lt23" select="sum($L[normalize-space(Tax/Rate)='23']/Tax/Amount)"/>
         <xsl:if test="$ln23&gt;0 or $lt23&gt;0"><P_13_1><xsl:value-of select="format-number($ln23,'0.00')"/></P_13_1><P_14_1><xsl:value-of select="format-number($lt23,'0.00')"/></P_14_1></xsl:if>
         <xsl:variable name="ln8" select="sum($L[normalize-space(Tax/Rate)='8']/NetAmount)"/><xsl:variable name="lt8" select="sum($L[normalize-space(Tax/Rate)='8']/Tax/Amount)"/>
@@ -350,6 +673,9 @@
         <xsl:if test="$lnZW&gt;0"><P_13_7><xsl:value-of select="format-number($lnZW,'0.00')"/></P_13_7></xsl:if>
         <xsl:variable name="lnNP" select="sum($L[normalize-space(Tax/Rate)='np I' or normalize-space(Tax/Rate)='np II']/NetAmount)"/>
         <xsl:if test="$lnNP&gt;0"><P_13_9><xsl:value-of select="format-number($lnNP,'0.00')"/></P_13_9></xsl:if>
+        <!-- P_13_10: Reverse charge from line items -->
+        <xsl:variable name="lnRC" select="sum($L[normalize-space(Tax/Rate)='oo' or normalize-space(Tax/Rate)='reverse_charge']/NetAmount)"/>
+        <xsl:if test="$lnRC&gt;0"><P_13_10><xsl:value-of select="format-number($lnRC,'0.00')"/></P_13_10></xsl:if>
       </xsl:when>
     </xsl:choose>
   </xsl:template>
@@ -361,7 +687,7 @@
   <xsl:template name="addr1"><xsl:param name="a"/><xsl:choose><xsl:when test="normalize-space($a/AddressLine1)!=''"><xsl:value-of select="normalize-space($a/AddressLine1)"/></xsl:when><xsl:when test="normalize-space($a/Street)!=''"><xsl:value-of select="normalize-space($a/Street)"/><xsl:if test="normalize-space($a/BuildingNumber)!=''"><xsl:text> </xsl:text><xsl:value-of select="normalize-space($a/BuildingNumber)"/></xsl:if><xsl:if test="normalize-space($a/ApartmentNumber)!=''">/<xsl:value-of select="normalize-space($a/ApartmentNumber)"/></xsl:if></xsl:when><xsl:otherwise>UNKNOWN ADDRESS</xsl:otherwise></xsl:choose></xsl:template>
   <xsl:template name="addr2"><xsl:param name="a"/><xsl:choose><xsl:when test="normalize-space($a/AddressLine2)!=''"><xsl:value-of select="normalize-space($a/AddressLine2)"/></xsl:when><xsl:otherwise><xsl:if test="normalize-space($a/PostalCode)!=''"><xsl:value-of select="normalize-space($a/PostalCode)"/></xsl:if><xsl:if test="normalize-space($a/PostalCode)!='' and normalize-space($a/City)!=''"><xsl:text> </xsl:text></xsl:if><xsl:if test="normalize-space($a/City)!=''"><xsl:value-of select="normalize-space($a/City)"/></xsl:if></xsl:otherwise></xsl:choose></xsl:template>
   <xsl:template name="fl"><xsl:param name="v"/><xsl:choose><xsl:when test="normalize-space($v)='true' or normalize-space($v)='1' or normalize-space($v)='yes'">1</xsl:when><xsl:otherwise>2</xsl:otherwise></xsl:choose></xsl:template>
-  <xsl:template name="map-type"><xsl:param name="t"/><xsl:choose><xsl:when test="$t='VAT' or $t='standard' or $t='regular'">VAT</xsl:when><xsl:when test="$t='KOR' or $t='corrective' or $t='credit_note'">KOR</xsl:when><xsl:when test="$t='ZAL' or $t='advance'">ZAL</xsl:when><xsl:when test="$t='ROZ' or $t='settlement' or $t='final'">ROZ</xsl:when><xsl:when test="$t='UPR' or $t='simplified'">UPR</xsl:when><xsl:when test="$t='KOR_ZAL' or $t='corrective_advance'">KOR_ZAL</xsl:when><xsl:when test="$t='KOR_ROZ' or $t='corrective_settlement'">KOR_ROZ</xsl:when><xsl:otherwise><xsl:value-of select="$t"/></xsl:otherwise></xsl:choose></xsl:template>
+  <xsl:template name="map-type"><xsl:param name="t"/><xsl:choose><xsl:when test="$t='VAT' or $t='standard' or $t='regular'">VAT</xsl:when><xsl:when test="$t='KOR' or $t='corrective' or $t='credit_note' or $t='cancellation'">KOR</xsl:when><xsl:when test="$t='ZAL' or $t='advance'">ZAL</xsl:when><xsl:when test="$t='ROZ' or $t='settlement' or $t='final'">ROZ</xsl:when><xsl:when test="$t='UPR' or $t='simplified'">UPR</xsl:when><xsl:when test="$t='KOR_ZAL' or $t='corrective_advance'">KOR_ZAL</xsl:when><xsl:when test="$t='KOR_ROZ' or $t='corrective_settlement'">KOR_ROZ</xsl:when><xsl:otherwise><xsl:value-of select="$t"/></xsl:otherwise></xsl:choose></xsl:template>
   <xsl:template name="map-pay"><xsl:param name="m"/><xsl:choose><xsl:when test="$m='1' or $m='cash' or $m='gotowka'">1</xsl:when><xsl:when test="$m='2' or $m='card' or $m='karta'">2</xsl:when><xsl:when test="$m='3' or $m='voucher' or $m='bon'">3</xsl:when><xsl:when test="$m='4' or $m='barter'">4</xsl:when><xsl:when test="$m='5' or $m='check' or $m='czek'">5</xsl:when><xsl:when test="$m='6' or $m='transfer' or $m='przelew' or $m='bank_transfer'">6</xsl:when><xsl:when test="$m='7' or $m='mobile' or $m='mobilna'">7</xsl:when><xsl:otherwise>6</xsl:otherwise></xsl:choose></xsl:template>
   <xsl:template name="map-role"><xsl:param name="r"/><xsl:choose><xsl:when test="$r='1' or $r='factor'">1</xsl:when><xsl:when test="$r='2' or $r='delivery' or $r='recipient'">2</xsl:when><xsl:when test="$r='3' or $r='original_seller'">3</xsl:when><xsl:when test="$r='4' or $r='issuer'">4</xsl:when><xsl:when test="$r='5' or $r='additional_buyer'">5</xsl:when><xsl:when test="$r='6' or $r='payer'">6</xsl:when><xsl:when test="$r='7' or $r='invoice_recipient'">7</xsl:when><xsl:when test="$r='8' or $r='jst_recipient'">8</xsl:when><xsl:when test="$r='9' or $r='additional_info'">9</xsl:when><xsl:when test="$r='10' or $r='gv_member'">10</xsl:when><xsl:when test="$r='11' or $r='employee'">11</xsl:when><xsl:otherwise><xsl:value-of select="$r"/></xsl:otherwise></xsl:choose></xsl:template>
 

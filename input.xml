@@ -2,18 +2,29 @@
 	<Header>
 		<InvoiceNumber>INV-Test-000052-26</InvoiceNumber>
 		<IssueDate>2026-02-19</IssueDate>
+		<IssuePlace>Malbork</IssuePlace>
+		<SaleDate>2026-02-18</SaleDate>
 		<DueDate>2026-04-30</DueDate>
 		<Currency>EUR</Currency>
+		<ExchangeRate>4.2850</ExchangeRate>
+		<SystemInfo>elims_EUPLMA</SystemInfo>
+		<RelatedParty>false</RelatedParty>
+		<PurchaseOrderNumber>PO-2026-00789</PurchaseOrderNumber>
+		<PurchaseOrderDate>2026-01-15</PurchaseOrderDate>
 	</Header>
 	<Parties>
 		<Seller>
-			<Name>Eurofins Biolab Srl</Name>
-			<TaxId>GST001234</TaxId>
+			<Name>Eurofins Polska Sp. z o.o.</Name>
+			<TaxId>5792000046</TaxId>
+			<VATPrefix>PL</VATPrefix>
+			<KRS>0000162793</KRS>
+			<REGON>192897343</REGON>
+			<Email>efaktura@ftcee.eurofins.com</Email>
 			<Address>
-				<Street>Via Bruno Buozzi,2 I-20090  Vimodrone (MI) ITALY </Street>
-				<City></City>
-				<PostalCode></PostalCode>
-				<Country> IT</Country>
+				<Street>Ul. Wojska Polskiego 90a</Street>
+				<City>Malbork</City>
+				<PostalCode>82-200</PostalCode>
+				<Country>PL</Country>
 			</Address>
 		</Seller>
 		<Buyer>
@@ -21,7 +32,7 @@
 			<TaxId>99-9999999</TaxId>
 			<Address>
 				<Street>B4 Maruthi, Sapphire</Street>
-				<City></City>
+				<City>Lancaster</City>
 				<PostalCode>17605</PostalCode>
 				<Country>US</Country>
 			</Address>
@@ -40,7 +51,7 @@
 				<Rate>0</Rate>
 				<Amount>0.00</Amount>
 			</Tax>
-			<GrossAmount>0.00</GrossAmount>
+			<GrossAmount>140.00</GrossAmount>
 		</LineItem>
 		<LineItem Number="2">
 			<Product>
@@ -54,12 +65,33 @@
 				<Rate>0</Rate>
 				<Amount>0.00</Amount>
 			</Tax>
-			<GrossAmount>0.00</GrossAmount>
+			<GrossAmount>646.00</GrossAmount>
 		</LineItem>
 	</Lines>
 	<Summary>
 		<TotalNetAmount>786.00</TotalNetAmount>
 		<TotalTaxAmount>0.00</TotalTaxAmount>
-		<TotalGrossAmount>0.00</TotalGrossAmount>
+		<TotalGrossAmount>786.00</TotalGrossAmount>
 	</Summary>
+	<Payment>
+		<DueDate>2026-04-30</DueDate>
+		<Method>bank_transfer</Method>
+		<PaymentDays>60</PaymentDays>
+		<BankAccount>
+			<AccountNumber>PL24 1050 1025 1000 0090 3045 0680</AccountNumber>
+			<SWIFT>WBKPPLPP</SWIFT>
+			<BankName>ING Bank Slaski</BankName>
+		</BankAccount>
+		<TermDescription>
+			<Days>60</Days>
+			<Unit>Dni</Unit>
+			<StartEvent>Od daty wystawienia faktury</StartEvent>
+		</TermDescription>
+	</Payment>
+	<Orders>
+		<Order>
+			<OrderNumber>PO-2026-00789</OrderNumber>
+			<OrderDate>2026-01-15</OrderDate>
+		</Order>
+	</Orders>
 </CanonicalInvoice>

@@ -1,0 +1,65 @@
+<CanonicalInvoice>
+	<Header>
+		<InvoiceNumber>KOR-2026-00123</InvoiceNumber>
+		<InvoiceType>KOR</InvoiceType>
+		<IssueDate>2026-03-10</IssueDate>
+		<IssuePlace>Malbork</IssuePlace>
+		<SaleDate>2026-02-18</SaleDate>
+		<Currency>PLN</Currency>
+		<SystemInfo>elims_EUPLMA</SystemInfo>
+		<CorrectedInvoiceDate>2026-02-19</CorrectedInvoiceDate>
+		<CorrectedInvoiceNumber>INV-Test-000052-26</CorrectedInvoiceNumber>
+		<CorrectedKSeFInvoiceNumber>5792000046-20260219-A1B2C3-D4E5F6-01</CorrectedKSeFInvoiceNumber>
+		<CorrectionReason>Korekta całkowita – wycofanie faktury</CorrectionReason>
+		<CorrectionType>1</CorrectionType>
+		<RelatedParty>false</RelatedParty>
+	</Header>
+	<Parties>
+		<Seller>
+			<Name>Eurofins Polska Sp. z o.o.</Name>
+			<TaxId>5792000046</TaxId>
+			<VATPrefix>PL</VATPrefix>
+			<KRS>0000162793</KRS>
+			<REGON>192897343</REGON>
+			<Email>efaktura@ftcee.eurofins.com</Email>
+			<Address>
+				<Street>Ul. Wojska Polskiego 90a</Street>
+				<City>Malbork</City>
+				<PostalCode>82-200</PostalCode>
+				<Country>PL</Country>
+			</Address>
+		</Seller>
+		<Buyer>
+			<Name>Test Polish Buyer Sp. z o.o.</Name>
+			<TaxId>6342974760</TaxId>
+			<Address>
+				<Street>ul. Testowa 15</Street>
+				<City>Warszawa</City>
+				<PostalCode>00-001</PostalCode>
+				<Country>PL</Country>
+			</Address>
+		</Buyer>
+	</Parties>
+	<Lines>
+		<LineItem Number="1">
+			<Product>
+				<Name>Batch# ZN25AA1133 - Corrective reversal</Name>
+				<SKU>TST-ZD-0000259916</SKU>
+			</Product>
+			<Quantity Unit="szt">-1</Quantity>
+			<UnitPrice>140.00</UnitPrice>
+			<NetAmount>-140.00</NetAmount>
+			<Tax>
+				<Rate>23</Rate>
+				<Amount>-32.20</Amount>
+			</Tax>
+			<GrossAmount>-172.20</GrossAmount>
+			<QuantityBefore>1</QuantityBefore>
+		</LineItem>
+	</Lines>
+	<Summary>
+		<TotalNetAmount>-140.00</TotalNetAmount>
+		<TotalTaxAmount>-32.20</TotalTaxAmount>
+		<TotalGrossAmount>-172.20</TotalGrossAmount>
+	</Summary>
+</CanonicalInvoice>

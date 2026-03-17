@@ -1,13 +1,51 @@
- ---                                                                             
-  What is KsefFa3.xslt?                                                           
-                                                                                  
-  It is an XSLT transformation map — a program written in XML that reads one XML
-  document (your internal invoice format) and converts it into a completely       
-  different XML document (the Polish government's KSeF FA(3) invoice format).
+ ---
+  Azure XML Integration — Multi-Country Invoice Transformation Pipeline
+  v2.0 (March 2026)
 
-  Think of it like a translation dictionary: your system speaks
-  "CanonicalInvoice", the Polish tax authority (KSeF) speaks "Faktura". This file
-  translates between the two.
+  ---
+
+  Architecture Overview
+
+  This system transforms internal CanonicalInvoice XML documents into
+  country-specific e-invoicing formats and submits them to the appropriate
+  government/partner APIs.
+
+  Phase 3: TransformToKsefXml Logic App (now multi-country)
+  Phase 4: SubmitToPartner Logic App (KSeF submission, future: per-country routing)
+
+  CanonicalInvoice → [Service Bus] → Transform Workflow → [Service Bus] → Submit Workflow
+
+  ---
+
+  Multi-Country Routing (v2.0)
+
+  The Service Bus payload now includes a ConversionType field:
+
+  {"CanonicalId": 123, "ConversionType": "PL_KSEF"}
+
+  The TransformToKsefXml workflow uses a Switch action to route to the correct
+  XSLT map and XSD schema based on ConversionType:
+
+  ConversionType    XSLT Map              XSD Schema              Status
+  ─────────────────────────────────────────────────────────────────────────
+  PL_KSEF           KsefFa3.xslt          FA3_schemat.xsd         Active
+  BE_UBL            BelgiumUBL.xslt       UBL-Invoice-2.1.xsd     Planned
+  DE_XRECHNUNG      GermanyXRechnung.xslt  XRechnung-Invoice.xsd   Planned
+  FR_FACTURX        FranceFacturX.xslt    Factur-X.xsd            Planned
+  IT_SDI            ItalySDI.xslt         FatturaPA.xsd           Planned
+
+  Default: Terminates with error "UnsupportedConversionType"
+
+  The outbound queue message also carries ConversionType for downstream routing:
+  {"PartnerSubmissionId": 456, "ConversionType": "PL_KSEF"}
+
+  ---
+
+  What is KsefFa3.xslt?
+
+  It is an XSLT transformation map — a program written in XML that reads one XML
+  document (your internal invoice format) and converts it into a completely
+  different XML document (the Polish government's KSeF FA(3) invoice format).
 
   Your System XML          XSLT Engine           KSeF FA(3) XML
   ─────────────────   →   (KsefFa3.xslt)   →   ────────────────
@@ -19,293 +57,176 @@
   </CanonicalInvoice>                            </Faktura>
 
   ---
-  File Structure — Section by Section
 
-  1. File Declaration (lines 1–16)
+  KsefFa3.xslt v7.0 — Changelog
 
-  <xsl:stylesheet version="1.0"
-      xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-      xmlns="http://ksef.mf.gov.pl/schema/FA/3-0E"
-      exclude-result-prefixes="xsl">
+  Aligned with KSeF Excel spec v2.2 (eLIMS Legacy). Key additions:
 
-  What: version="1.0"
-  Why: Tells the XSLT engine which spec to follow. Azure Logic Apps supports XSLT
-    1.0.
-  ────────────────────────────────────────
-  What: xmlns:xsl=...
-  Why: Declares the XSLT instruction namespace — every xsl: tag is an instruction
-  ────────────────────────────────────────
-  What: xmlns="http://ksef.mf.gov.pl/schema/FA/3-0E"
-  Why: Sets the default output namespace — every output element automatically
-    belongs to the KSeF namespace, matching what the XSD requires
-  ────────────────────────────────────────
-  What: exclude-result-prefixes="xsl"
-  Why: Prevents the xsl: namespace from appearing in the output XML
+  Corrective Invoices:
+  - DaneFaKorygowanej section (DataWystFaKorygowanej, NrFaKorygowanej, NrKSeF, NrKSeFN)
+  - Podmiot2K (corrected buyer data)
+  - PrzyczynaKorekty (default: "Korekta całkowita – wycofanie faktury")
+  - TypKorekty (default: 1)
+  - "cancellation" mapped to KOR invoice type
+  - StanPrzed (quantity before correction) in FaWiersz
 
-  ---
-  2. Root Template (line 19–279)
+  New Fields:
+  - PrefiksPodatnika: Hardcoded to PL (per Excel spec)
+  - P_1M: Invoice issue location (Malbork, Katowice, Łódź per branch)
+  - TP: Entity relationship indicator (related party / Eurofins group)
+  - FP: Cash register transaction flag
+  - KursWalutyZ: Foreign currency exchange rate
+  - P_13_10: Reverse charge net amount
+  - P_13_6_3: Explicit 0% VAT export bucket
+  - P_13_9: np (outside scope) in TaxBreakdown path
 
-  <xsl:template match="/">
-      <Faktura> ... </Faktura>
-  </xsl:template>
+  Payment Enhancements:
+  - TerminOpis: Structured payment term (Ilosc/Jednostka/ZdarzeniePoczatkowe)
+  - Zaplacono: Always emitted (0 or 1)
+  - ZnacznikZaplatyCzesciowej: Partial payment flag
+  - ZaplataCzesciowa: Partial payment details (amount, date, method)
+  - PlatnoscInna/OpisPlatnosci: Other payment method description
 
-  - match="/" means "start here — at the very root of the input document"
-  - <Faktura> is the root element required by FA3_schemat.xsd
-  - Everything inside builds the output document
+  Orders:
+  - Zamowienia: Customer order/PO numbers with dates (multiple supported)
+  - Backward-compatible with Header/PurchaseOrderNumber
 
-  The root template has 4 major sections, each mapping to a section of the XSD:
+  Line Items:
+  - P_12_Zal_15: Annex 15 goods/services classification
+  - KursWaluty: Line-level exchange rate
+  - StanPrzed: Pre-correction quantity
 
-  ---
-  3. NAGLOWEK — Invoice Header (lines 22–45)
+  Podmiot3 (Third Party) Enhancements:
+  - KodUE/NrVatUE path for EU third parties
+  - IDWew (internal ID) for Polish entities
+  - RolaInna/OpisRoli for custom roles
 
-  Maps to XSD type TNaglowek. Contains metadata about the invoice form itself.
+  Advance Invoices:
+  - ZaliczkaCzesciowa (P_6Z, P_15Z) for advance receipt
+  - FakturaZaliczkowa (NrKSeFZN, NrFaZaliczkowej, NrKSeFFaZaliczkowej)
 
-  <Naglowek>
-      <KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
-      <WariantFormularza>3</WariantFormularza>
-      <DataWytworzeniaFa> ... </DataWytworzeniaFa>
-      <SystemInfo> ... </SystemInfo>
-  </Naglowek>
-
-  ┌────────────────┬───────────────────────────────┬─────────────────────────┐
-  │  Output Field  │            Source             │          Logic          │
-  ├────────────────┼───────────────────────────────┼─────────────────────────┤
-  │ KodFormularza  │ Hardcoded FA with attributes  │ XSD requires exactly    │
-  │                │                               │ these values for FA(3)  │
-  ├────────────────┼───────────────────────────────┼─────────────────────────┤
-  │ WariantFormula │ Hardcoded 3                   │ Always 3 for FA(3)      │
-  │ rza            │                               │                         │
-  ├────────────────┼───────────────────────────────┼─────────────────────────┤
-  │                │                               │ If date lacks a T (time │
-  │ DataWytworzeni │ CanonicalInvoice/Header/Issue │  part), appends         │
-  │ aFa            │ Date                          │ T00:00:00Z to make it   │
-  │                │                               │ ISO 8601 datetime       │
-  ├────────────────┼───────────────────────────────┼─────────────────────────┤
-  │                │ CanonicalInvoice/Header/Syste │ Falls back to Standard_ │
-  │ SystemInfo     │ mInfo                         │ Integration_System if   │
-  │                │                               │ blank                   │
-  └────────────────┴───────────────────────────────┴─────────────────────────┘
+  Stopka (Footer):
+  - Structured Rejestry (KRS, REGON as separate elements)
+  - Informacje for additional text
 
   ---
-  4. PODMIOT1 — Seller (lines 47–85)
 
-  Maps to XSD type TPodmiot1. The seller is strictly required to have a Polish NIP
-   (tax ID).
-
-  <Podmiot1>
-      <DaneIdentyfikacyjne>
-          <NIP> ... </NIP>        <!-- Polish 10-digit tax ID -->
-          <Nazwa> ... </Nazwa>    <!-- Company name -->
-      </DaneIdentyfikacyjne>
-      <Adres> ... </Adres>        <!-- Address -->
-      <DaneKontaktowe> ... </DaneKontaktowe>   <!-- Optional: email/phone -->
-  </Podmiot1>
-
-  Key logic — NIP validation (lines 54–59):
-  <xsl:when test="string-length($sellerTaxId) = 10
-      and not(contains($sellerTaxId, '-'))
-      and not(contains($sellerTaxId, ' '))
-      and translate($sellerTaxId, '0123456789', '') = ''">
-  This checks: exactly 10 characters, no dashes, no spaces, only digits. If
-  invalid, falls back to 1111111111 (test dummy). This mirrors what the XSD
-  pattern restriction requires.
-
-  ---
-  5. PODMIOT2 — Buyer (lines 87–138)
-
-  Maps to XSD type TPodmiot2. The buyer is more flexible — can use NIP, a foreign
-  tax ID (NrID), or BrakID (no ID at all).
-
-  <xsl:choose>
-      <!-- Polish NIP → <NIP> -->
-      <xsl:when test="[10 digits check]"> <NIP>...</NIP> </xsl:when>
-      <!-- Foreign ID → <KodKraju> + <NrID> -->
-      <xsl:when test="$buyerTaxId != ''"> <NrID>...</NrID> </xsl:when>
-      <!-- No ID at all → <BrakID>1</BrakID> -->
-      <xsl:otherwise> <BrakID>1</BrakID> </xsl:otherwise>
-  </xsl:choose>
-
-  Two hardcoded fields at the end (lines 134–137):
-  - <JST>2</JST> — not a local government unit
-  - <GV>2</GV> — not a VAT group member
-
-  These are required by the XSD with no equivalent in your CanonicalInvoice.
-
-  ---
-  6. FA — Invoice Core (lines 140–277)
-
-  The main invoice body. Maps to XSD type TFa.
-
-  6a. Simple field mappings
-
-  <KodWaluty>PLN</KodWaluty>          <!-- Currency, default PLN -->
-  <P_1>2024-01-15</P_1>               <!-- Issue date -->
-  <P_2>FV/2024/001</P_2>              <!-- Invoice number -->
-  <P_15>1230.00</P_15>                <!-- Total gross amount -->
-
-  6b. Tax summaries — named template call (line 159)
-
-  <xsl:call-template name="emit-tax-summaries"/>
-  Delegates to a separate named template (lines 282–316) to keep the main template
-   clean. See section 7 below.
-
-  6c. ADNOTACJE — Required annotations (lines 164–188)
-
-  All hardcoded to 2 (No) or 1 (Not applicable). These are regulatory flags
-  required by KSeF but not present in CanonicalInvoice:
-  <P_16>2</P_16>   <!-- No cash accounting method -->
-  <P_17>2</P_17>   <!-- No self-billing -->
-  <P_18>2</P_18>   <!-- No reverse charge -->
-  <P_18A>2</P_18A> <!-- No split payment -->
-
-  6d. FaWiersz — Line items (lines 200–251)
-
-  <xsl:for-each select="/CanonicalInvoice/Lines/LineItem">
-      <FaWiersz>
-          <NrWierszaFa>...</NrWierszaFa>  <!-- Line number from @Number attribute
-  -->
-          <P_7>...</P_7>                   <!-- Product name -->
-          <P_8A>...</P_8A>                 <!-- Unit of measure -->
-          <P_8B>...</P_8B>                 <!-- Quantity -->
-          <P_9A>...</P_9A>                 <!-- Unit price -->
-          <P_11>...</P_11>                 <!-- Net amount -->
-          <P_12>...</P_12>                 <!-- VAT rate (mapped to KSeF enum) -->
-      </FaWiersz>
-  </xsl:for-each>
-  xsl:for-each loops over every LineItem and creates one FaWiersz per item.
-
-  VAT rate mapping (lines 229–247): Raw rate values like "23", "8", "5" are passed
-   through as-is. "0" is mapped to "zw" (exempt). Unknown rates fall back to "np
-  I" (out of scope).
-
-  6e. PLATNOSC — Payment terms (lines 253–276)
-
-  Rendered only if DueDate or PaymentMethod is present:
-  <Platnosc>
-      <TerminPlatnosci><Termin>2024-02-15</Termin></TerminPlatnosci>
-      <FormaPlatnosci>6</FormaPlatnosci>   <!-- 6 = bank transfer -->
-      <RachunekBankowy><NrRB>PL61...</NrRB></RachunekBankowy>
-  </Platnosc>
-
-  ---
-  7. Named Template: emit-tax-summaries (lines 282–316)
-
-  This is a reusable subroutine called by <xsl:call-template>. It maps tax
-  breakdown rows to KSeF's P_13_x/P_14_x field naming convention:
-
-  ┌──────────────┬──────────────────────────┬─────────────────┐
-  │   Tax Rate   │      KSeF Net Field      │ KSeF Tax Field  │
-  ├──────────────┼──────────────────────────┼─────────────────┤
-  │ 23% or 22%   │ P_13_1                   │ P_14_1          │
-  ├──────────────┼──────────────────────────┼─────────────────┤
-  │ 8% or 7%     │ P_13_2                   │ P_14_2          │
-  ├──────────────┼──────────────────────────┼─────────────────┤
-  │ 5%           │ P_13_3                   │ P_14_3          │
-  ├──────────────┼──────────────────────────┼─────────────────┤
-  │ 0%           │ P_13_6_1                 │ (no tax amount) │
-  ├──────────────┼──────────────────────────┼─────────────────┤
-  │ No breakdown │ Falls back to 23% bucket │                 │
-  └──────────────┴──────────────────────────┴─────────────────┘
-
-  ---
   Complete Data Flow Diagram
 
   CanonicalInvoice XML
-  ├── Header/IssueDate        → Naglowek/DataWytworzeniaFa  (+ time suffix if needed)
-  ├── Header/InvoiceNumber    → Fa/P_2
-  ├── Header/Currency         → Fa/KodWaluty                (default: PLN)
-  ├── Header/DueDate          → Fa/Platnosc/TerminPlatnosci
-  ├── Header/PaymentMethod    → Fa/Platnosc/FormaPlatnosci   (default: 6)
-  ├── Header/BankAccount      → Fa/Platnosc/RachunekBankowy
-  ├── Parties/Seller/TaxId    → Podmiot1/DaneIdentyfikacyjne/NIP  (validated)
-  ├── Parties/Seller/Name     → Podmiot1/DaneIdentyfikacyjne/Nazwa
-  ├── Parties/Buyer/TaxId     → Podmiot2 → NIP or NrID or BrakID (3-way logic)
-  ├── Lines/LineItem[@Number] → Fa/FaWiersz (one per item, via for-each)
-  └── Summary/Taxes/Tax       → Fa/P_13_x + P_14_x          (per rate)
+  ├── Header/IssueDate         → Naglowek/DataWytworzeniaFa  (+ T00:00:00Z if no time)
+  ├── Header/InvoiceNumber     → Fa/P_2
+  ├── Header/IssuePlace        → Fa/P_1M  (NEW: issue location)
+  ├── Header/Currency          → Fa/KodWaluty  (default: PLN)
+  ├── Header/ExchangeRate      → Fa/KursWalutyZ  (if foreign currency)
+  ├── Header/SaleDate          → Fa/P_6
+  ├── Header/InvoiceType       → Fa/RodzajFaktury  (VAT, KOR, ZAL, ROZ, UPR)
+  ├── Header/RelatedParty      → Fa/TP  (NEW: entity relationship)
+  ├── Header/CashRegisterFlag  → Fa/FP  (NEW: cash register)
+  ├── Header/Corrected*        → Fa/DaneFaKorygowanej/*  (NEW: corrective invoice)
+  ├── Header/CorrectionReason  → Fa/PrzyczynaKorekty  (NEW)
+  ├── Header/CorrectionType    → Fa/TypKorekty  (NEW)
+  ├── Parties/Seller/TaxId     → Podmiot1/DaneIdentyfikacyjne/NIP  (validated)
+  ├── Parties/Seller/VATPrefix → Podmiot1/PrefiksPodatnika  (NEW: default PL)
+  ├── Parties/Seller/KRS       → Stopka/Rejestry/KRS  (NEW: structured)
+  ├── Parties/Seller/REGON     → Stopka/Rejestry/REGON  (NEW: structured)
+  ├── Parties/Seller/Name      → Podmiot1/DaneIdentyfikacyjne/Nazwa
+  ├── Parties/Buyer/TaxId      → Podmiot2 → NIP or KodUE+NrVatUE or KodKraju+NrID or BrakID
+  ├── Parties/ThirdParty       → Podmiot3  (enhanced: KodUE/NrVatUE, IDWew, RolaInna)
+  ├── Lines/LineItem[@Number]  → Fa/FaWiersz  (enhanced: P_12_Zal_15, KursWaluty, StanPrzed)
+  ├── Summary/TaxBreakdown     → Fa/P_13_x + P_14_x  (enhanced: P_13_10, P_13_6_3, P_13_9)
+  ├── Payment/DueDate          → Fa/Platnosc/TerminPlatnosci/Termin
+  ├── Payment/TermDescription  → Fa/Platnosc/TerminPlatnosci/TerminOpis  (NEW)
+  ├── Payment/PartialPayment   → Fa/Platnosc/ZaplataCzesciowa  (NEW)
+  └── Orders/Order             → Fa/WarunkiTransakcji/Zamowienia  (NEW)
 
   ---
-  Online References
 
-  XSLT Language
+  Tax Rate Mapping
 
-  ┌────────────┬─────────────────────────────────────────────┬────────────────┐
-  │  Resource  │                     URL                     │ What it covers │
-  ├────────────┼─────────────────────────────────────────────┼────────────────┤
-  │ W3Schools  │                                             │ Beginner-frien │
-  │ XSLT       │ https://www.w3schools.com/xml/xsl_intro.asp │ dly, all major │
-  │ Tutorial   │                                             │  instructions  │
-  ├────────────┼─────────────────────────────────────────────┼────────────────┤
-  │ W3C XSLT   │                                             │ The            │
-  │ 1.0 Specif │ https://www.w3.org/TR/xslt                  │ authoritative  │
-  │ ication    │                                             │ spec           │
-  ├────────────┼─────────────────────────────────────────────┼────────────────┤
-  │ XSLT &     │                                             │                │
-  │ XPath      │ https://developer.mozilla.org/en-US/docs/We │ Good function  │
-  │ Reference  │ b/XSLT                                      │ reference      │
-  │ (MDN)      │                                             │                │
-  ├────────────┼─────────────────────────────────────────────┼────────────────┤
-  │ Zvon XSLT  │ http://www.zvon.org/xxl/XSLTreference/Outpu │ Quick lookup   │
-  │ Reference  │ t/index.html                                │ per            │
-  │            │                                             │ instruction    │
-  └────────────┴─────────────────────────────────────────────┴────────────────┘
-
-  Azure Logic Apps — Maps/XSLT
-
-  Resource: Microsoft Docs: Transform XML with maps
-  URL: https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-enterprise-in
-  tegration-transform
-  What it covers: How maps work in Logic Apps
-  ────────────────────────────────────────
-  Resource: Microsoft Docs: Add XSLT maps
-  URL: https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-enterprise-in
-  tegration-maps
-  What it covers: Uploading/using maps in integration accounts
-
-  KSeF (Polish e-invoicing system)
-
-  ┌────────────┬─────────────────────────────────────────────────┬────────────┐
-  │  Resource  │                       URL                       │  What it   │
-  │            │                                                 │   covers   │
-  ├────────────┼─────────────────────────────────────────────────┼────────────┤
-  │ KSeF       │ https://www.podatki.gov.pl/ksef/dokumenty-do-po │ FA(3) XSD  │
-  │ official   │ brania-ksef/                                    │ schema     │
-  │ schemas    │                                                 │ downloads  │
-  ├────────────┼─────────────────────────────────────────────────┼────────────┤
-  │ KSeF       │                                                 │ Full API   │
-  │ technical  │ https://www.podatki.gov.pl/ksef/                │ and schema │
-  │ documentat │                                                 │  documenta │
-  │ ion        │                                                 │ tion       │
-  └────────────┴─────────────────────────────────────────────────┴────────────┘
-
-  XSD → XSLT Tools
-
-  Resource: Oxygen XML Editor
-  URL: https://www.oxygenxml.com
-  What it covers: Best IDE for XSLT development, has visual mapper
-  ────────────────────────────────────────
-  Resource: Altova MapForce
-  URL: https://www.altova.com/mapforce
-  What it covers: Drag-and-drop XML-to-XML mapping that generates XSLT
-  ────────────────────────────────────────
-  Resource: XSLT Fiddle (online tester)
-  URL: https://xsltfiddle.liberty-development.net
-  What it covers: Paste input XML + XSLT and test instantly
-  ────────────────────────────────────────
-  Resource: FreeFormatter XSLT tester
-  URL: https://www.freeformatter.com/xsl-transformer.html
-  What it covers: Quick online transform testing
+  Rate            KSeF Net Field       KSeF Tax Field     Notes
+  ──────────────────────────────────────────────────────────────────
+  23% / 22%       P_13_1               P_14_1             Standard rate
+  8% / 7%         P_13_2               P_14_2             Reduced rate
+  5%              P_13_3               P_14_3             Special reduced
+  0% KR           P_13_6_1             (none)             Domestic zero-rate
+  0% WDT          P_13_6_2             (none)             Intra-EU delivery
+  0% EX (export)  P_13_8               (none)             Export outside EU
+  0% EX (bucket3) P_13_6_3             (none)             Export (explicit)
+  zw (exempt)     P_13_7               (none)             VAT exempt
+  np I / np II    P_13_9               (none)             Outside scope
+  oo (rev.charge) P_13_10              (none)             Reverse charge (NEW)
 
   ---
-  Summary for Your Manager
 
-  What this file does: It is the "translation engine" between our internal invoice
-   data format and the Polish government's mandatory KSeF FA(3) invoice format.
-  Without this transformation, we cannot submit invoices to the KSeF system.
+  Service Bus Message Formats
 
-  Why it is complex: The KSeF XSD schema has strict rules — certain fields must be
-   exact 10-digit numbers, tax rates must use specific codes, and many regulatory
-  flags are required even when they don't apply to us. The XSLT handles all of
-  this mapping, validation, and defaulting logic in one place.
+  Trigger message (topic: invoice-ready-for-transformation):
+  {
+    "CanonicalId": 123,
+    "ConversionType": "PL_KSEF"
+  }
 
-  Where it runs: Inside Azure Logic Apps as a "Transform XML" action — Azure
-  applies this file automatically during the invoice submission workflow.
+  Output message (queue: partner-xml-ready-for-submission):
+  {
+    "PartnerSubmissionId": 456,
+    "ConversionType": "PL_KSEF"
+  }
+
+  Supported ConversionType values: PL_KSEF, BE_UBL, DE_XRECHNUNG, FR_FACTURX, IT_SDI
+
+  ---
+
+  SQL Schema Changes
+
+  The InsertPartnerDocument stored procedure now accepts ConversionType:
+  EXEC [EDI].[InsertPartnerDocument]
+    @CanonicalId = @CanonicalId,
+    @PartnerDocumentData = @PartnerDocumentData,
+    @ConversionType = @ConversionType
+
+  ---
+
+  Testing
+
+  Run the test suite:
+    cd logic-app-v2
+    python test/test_transform.py
+
+  Tests:
+  1. Standard invoice (EUR, non-EU buyer, 0% export) — structural + XSD validation
+  2. Corrective invoice (KOR, PLN, Polish buyer) — corrective fields + XSD validation
+
+  ---
+
+  Adding a New Country
+
+  1. Create XSLT: logic-app-v2/maps/{CountryFormat}.xslt
+  2. Add XSD schema: logic-app-v2/schemas/{Format}.xsd
+  3. Add Switch case in TransformToKsefXml/workflow.json with new ConversionType
+  4. Add test cases in logic-app-v2/test/
+  5. (Future) Add submission routing in SubmitToPartner/workflow.json
+
+  ---
+
+  File Structure
+
+  azure-xml-integration/
+  ├── logic-app-v2/
+  │   ├── TransformToKsefXml/workflow.json   ← Multi-country routing (Switch on ConversionType)
+  │   ├── SubmitToPartner/workflow.json      ← KSeF API submission (future: per-country)
+  │   ├── maps/
+  │   │   └── KsefFa3.xslt                  ← Polish KSeF FA(3) v7.0 (Excel spec aligned)
+  │   │   └── (future: BelgiumUBL.xslt, GermanyXRechnung.xslt, etc.)
+  │   ├── schemas/
+  │   │   ├── FA3_schemat.xsd
+  │   │   ├── StrukturyDanych_v10-0E.xsd
+  │   │   ├── ElementarneTypyDanych_v10-0E.xsd
+  │   │   └── KodyKrajow_v10-0E.xsd
+  │   └── test/
+  │       ├── test_transform.py              ← Test suite (standard + corrective)
+  │       ├── input_corrective.xml           ← Corrective invoice test input
+  │       └── sample XMLs
+  ├── input.xml                              ← Sample canonical invoice (enhanced)
+  ├── output.xml                             ← Expected transformation output
+  └── README.md                              ← This file

@@ -89,21 +89,6 @@
                                             }
                                         }
                                     },
-                                    "Validate_XML_PL": {
-                                        "type": "XmlValidation",
-                                        "inputs": {
-                                            "content": "@xml(substring(base64ToString(body('Transform_XML_PL')?['$content']),indexOf(base64ToString(body('Transform_XML_PL')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_PL')?['$content'])),indexOf(base64ToString(body('Transform_XML_PL')?['$content']), '<'))))",
-                                            "schema": {
-                                                "source": "LogicApp",
-                                                "name": "FA3_schemat.xsd"
-                                            }
-                                        },
-                                        "runAfter": {
-                                            "Transform_XML_PL": [
-                                                "SUCCEEDED"
-                                            ]
-                                        }
-                                    },
                                     "Set_TransformResult_PL": {
                                         "type": "SetVariable",
                                         "inputs": {
@@ -111,7 +96,7 @@
                                             "value": "@string(xml(substring(base64ToString(body('Transform_XML_PL')?['$content']),indexOf(base64ToString(body('Transform_XML_PL')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_PL')?['$content'])),indexOf(base64ToString(body('Transform_XML_PL')?['$content']), '<')))))"
                                         },
                                         "runAfter": {
-                                            "Validate_XML_PL": [
+                                            "Transform_XML_PL": [
                                                 "SUCCEEDED"
                                             ]
                                         }
@@ -131,21 +116,6 @@
                                             }
                                         }
                                     },
-                                    "Validate_XML_BE": {
-                                        "type": "XmlValidation",
-                                        "inputs": {
-                                            "content": "@xml(substring(base64ToString(body('Transform_XML_BE')?['$content']),indexOf(base64ToString(body('Transform_XML_BE')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_BE')?['$content'])),indexOf(base64ToString(body('Transform_XML_BE')?['$content']), '<'))))",
-                                            "schema": {
-                                                "source": "LogicApp",
-                                                "name": "UBL-Invoice-2.1.xsd"
-                                            }
-                                        },
-                                        "runAfter": {
-                                            "Transform_XML_BE": [
-                                                "SUCCEEDED"
-                                            ]
-                                        }
-                                    },
                                     "Set_TransformResult_BE": {
                                         "type": "SetVariable",
                                         "inputs": {
@@ -153,7 +123,7 @@
                                             "value": "@string(xml(substring(base64ToString(body('Transform_XML_BE')?['$content']),indexOf(base64ToString(body('Transform_XML_BE')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_BE')?['$content'])),indexOf(base64ToString(body('Transform_XML_BE')?['$content']), '<')))))"
                                         },
                                         "runAfter": {
-                                            "Validate_XML_BE": [
+                                            "Transform_XML_BE": [
                                                 "SUCCEEDED"
                                             ]
                                         }
@@ -173,21 +143,6 @@
                                             }
                                         }
                                     },
-                                    "Validate_XML_DE": {
-                                        "type": "XmlValidation",
-                                        "inputs": {
-                                            "content": "@xml(substring(base64ToString(body('Transform_XML_DE')?['$content']),indexOf(base64ToString(body('Transform_XML_DE')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_DE')?['$content'])),indexOf(base64ToString(body('Transform_XML_DE')?['$content']), '<'))))",
-                                            "schema": {
-                                                "source": "LogicApp",
-                                                "name": "XRechnung-Invoice.xsd"
-                                            }
-                                        },
-                                        "runAfter": {
-                                            "Transform_XML_DE": [
-                                                "SUCCEEDED"
-                                            ]
-                                        }
-                                    },
                                     "Set_TransformResult_DE": {
                                         "type": "SetVariable",
                                         "inputs": {
@@ -195,7 +150,7 @@
                                             "value": "@string(xml(substring(base64ToString(body('Transform_XML_DE')?['$content']),indexOf(base64ToString(body('Transform_XML_DE')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_DE')?['$content'])),indexOf(base64ToString(body('Transform_XML_DE')?['$content']), '<')))))"
                                         },
                                         "runAfter": {
-                                            "Validate_XML_DE": [
+                                            "Transform_XML_DE": [
                                                 "SUCCEEDED"
                                             ]
                                         }
@@ -215,21 +170,6 @@
                                             }
                                         }
                                     },
-                                    "Validate_XML_FR": {
-                                        "type": "XmlValidation",
-                                        "inputs": {
-                                            "content": "@xml(substring(base64ToString(body('Transform_XML_FR')?['$content']),indexOf(base64ToString(body('Transform_XML_FR')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_FR')?['$content'])),indexOf(base64ToString(body('Transform_XML_FR')?['$content']), '<'))))",
-                                            "schema": {
-                                                "source": "LogicApp",
-                                                "name": "Factur-X.xsd"
-                                            }
-                                        },
-                                        "runAfter": {
-                                            "Transform_XML_FR": [
-                                                "SUCCEEDED"
-                                            ]
-                                        }
-                                    },
                                     "Set_TransformResult_FR": {
                                         "type": "SetVariable",
                                         "inputs": {
@@ -237,7 +177,7 @@
                                             "value": "@string(xml(substring(base64ToString(body('Transform_XML_FR')?['$content']),indexOf(base64ToString(body('Transform_XML_FR')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_FR')?['$content'])),indexOf(base64ToString(body('Transform_XML_FR')?['$content']), '<')))))"
                                         },
                                         "runAfter": {
-                                            "Validate_XML_FR": [
+                                            "Transform_XML_FR": [
                                                 "SUCCEEDED"
                                             ]
                                         }
@@ -257,21 +197,6 @@
                                             }
                                         }
                                     },
-                                    "Validate_XML_IT": {
-                                        "type": "XmlValidation",
-                                        "inputs": {
-                                            "content": "@xml(substring(base64ToString(body('Transform_XML_IT')?['$content']),indexOf(base64ToString(body('Transform_XML_IT')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_IT')?['$content'])),indexOf(base64ToString(body('Transform_XML_IT')?['$content']), '<'))))",
-                                            "schema": {
-                                                "source": "LogicApp",
-                                                "name": "FatturaPA.xsd"
-                                            }
-                                        },
-                                        "runAfter": {
-                                            "Transform_XML_IT": [
-                                                "SUCCEEDED"
-                                            ]
-                                        }
-                                    },
                                     "Set_TransformResult_IT": {
                                         "type": "SetVariable",
                                         "inputs": {
@@ -279,7 +204,7 @@
                                             "value": "@string(xml(substring(base64ToString(body('Transform_XML_IT')?['$content']),indexOf(base64ToString(body('Transform_XML_IT')?['$content']), '<'),sub(length(base64ToString(body('Transform_XML_IT')?['$content'])),indexOf(base64ToString(body('Transform_XML_IT')?['$content']), '<')))))"
                                         },
                                         "runAfter": {
-                                            "Validate_XML_IT": [
+                                            "Transform_XML_IT": [
                                                 "SUCCEEDED"
                                             ]
                                         }

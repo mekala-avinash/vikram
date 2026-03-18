@@ -466,7 +466,12 @@
               8. IPKSeF
             -->
 
-            <!-- 1. Payment status choice (Zaplacono is TWybor1 = only value "1", omit if not paid) -->
+            <!--
+              1. Payment status (XSD choice: Zaplacono | ZnacznikZaplatyCzesciowej):
+                 - Paid invoice:   Zaplacono=1 + DataZaplaty (mandatory when Zaplacono present)
+                 - Unpaid invoice: omit Zaplacono entirely (TWybor1 only allows "1")
+                 - Partial pay:    ZnacznikZaplatyCzesciowej + ZaplataCzesciowa (one per instalment)
+            -->
             <xsl:choose>
               <xsl:when test="normalize-space($P/PartialPaymentFlag)='1' or $P/PartialPayment">
                 <!-- Partial payment path -->
@@ -490,12 +495,21 @@
                   </ZaplataCzesciowa>
                 </xsl:for-each>
               </xsl:when>
-              <xsl:when test="$isPaid">
-                <!-- Fully paid path (Zaplacono=1 only; omit entirely if not paid) -->
-                <Zaplacono>1</Zaplacono>
-                <DataZaplaty><xsl:choose><xsl:when test="normalize-space($H/PaymentDate)!=''"><xsl:value-of select="normalize-space($H/PaymentDate)"/></xsl:when><xsl:when test="normalize-space($P/PaymentDate)!=''"><xsl:value-of select="normalize-space($P/PaymentDate)"/></xsl:when><xsl:otherwise><xsl:value-of select="$H/IssueDate"/></xsl:otherwise></xsl:choose></DataZaplaty>
-              </xsl:when>
-              <!-- else: not paid, no partial → omit the choice entirely -->
+              <xsl:otherwise>
+                <!--
+                  Zaplacono: XSD TWybor1 only allows value "1" (paid).
+                  For unpaid invoices the element is omitted entirely (minOccurs="0").
+                  When paid: emit Zaplacono=1 + DataZaplaty.
+                -->
+                <xsl:if test="$isPaid">
+                  <Zaplacono>1</Zaplacono>
+                  <DataZaplaty><xsl:choose>
+                    <xsl:when test="normalize-space($H/PaymentDate)!=''"><xsl:value-of select="normalize-space($H/PaymentDate)"/></xsl:when>
+                    <xsl:when test="normalize-space($P/PaymentDate)!=''"><xsl:value-of select="normalize-space($P/PaymentDate)"/></xsl:when>
+                    <xsl:otherwise><xsl:value-of select="$H/IssueDate"/></xsl:otherwise>
+                  </xsl:choose></DataZaplaty>
+                </xsl:if>
+              </xsl:otherwise>
             </xsl:choose>
 
             <!-- 2. TerminPlatnosci -->

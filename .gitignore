@@ -10,6 +10,7 @@ local.settings.json
 
 # --- Azure Functions / Logic App local dev ---
 .vscode/
+.claude
 host.json.local
 
 # --- Python ---

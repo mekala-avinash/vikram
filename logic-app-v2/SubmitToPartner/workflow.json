@@ -42,13 +42,13 @@
             "Get_OAuth_Token": {
                 "type": "Http",
                 "inputs": {
-                    "uri": "https://login.smartksef-staging.exorigo-upos.pl/d92dfc98-2b80-4938-97f5-d4bee2112678/B2C_1_susi/oauth2/v2.0/token?grant_type=client_credentials&client_id=0a0c76b5-31eb-47ec-86ff-ae15588b2212&client_secret=REDACTED_CLIENT_SECRET&scope=https://login.smartksef-staging.exorigo-upos.pl/api/invoices/.default",
+                    "uri": "@{parameters('KsefAuthUrl')}?grant_type=client_credentials&client_id=@{parameters('KsefClientId')}&client_secret=@{parameters('KsefClientSecret')}&scope=@{parameters('KsefScope')}",
                     "method": "POST",
                     "queries": {
                         "grant_type": "client_credentials",
-                        "client_id": "0a0c76b5-31eb-47ec-86ff-ae15588b2212",
-                        "client_secret": "REDACTED_CLIENT_SECRET",
-                        "scope": "https://login.smartksef-staging.exorigo-upos.pl/api/invoices/.default"
+                        "client_id": "@parameters('KsefClientId')",
+                        "client_secret": "@parameters('KsefClientSecret')",
+                        "scope": "@parameters('KsefScope')"
                     }
                 },
                 "runAfter": {
@@ -85,7 +85,7 @@
             "POST_to_KSeF_API": {
                 "type": "Http",
                 "inputs": {
-                    "uri": "https://api.smartksef-staging.exorigo-upos.pl/invoices",
+                    "uri": "@parameters('KsefApiUrl')",
                     "method": "POST",
                     "headers": {
                         "Accept": "*/*",
@@ -185,7 +185,7 @@
                 "type": "ServiceProvider",
                 "inputs": {
                     "parameters": {
-                        "queueName": "ksef-xml-ready-for-submission"
+                        "queueName": "@parameters('ServiceBusQueueName')"
                     },
                     "serviceProviderConfiguration": {
                         "connectionName": "serviceBus",

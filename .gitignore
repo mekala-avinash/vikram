@@ -1,13 +1,18 @@
-# Terraform files
-*.tfstate
-*.tfstate.*
-.terraform/
-.terraform.lock.hcl
-# terraform.tfvars
-# *.tfvars
-!terraform.tfvars.example
+# ============================================================
+# KSeF Azure Integration — .gitignore
+# ============================================================
 
-# Function App
+# --- Secrets & Environment-local config ---
+# Never commit real parameter files with secrets.
+# Use environments/parameters.example.json as the template.
+local.settings.json
+*.secrets.json
+
+# --- Azure Functions / Logic App local dev ---
+.vscode/
+host.json.local
+
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -17,22 +22,33 @@ venv/
 ENV/
 env/
 
-# Azure Functions
-local.settings.json
-.vscode/
+# --- Test outputs (generated — not source) ---
+tests/output/
+tests/**/*_output.xml
+tests/**/*_result.xml
 
-# Modules (downloaded by script)
-modules/
-
-# OS files
+# --- OS metadata ---
 .DS_Store
 Thumbs.db
 
-# IDE
+# --- IDE ---
 .idea/
 *.swp
 *.swo
 *~
 
-# Logs
+# --- Logs ---
 *.log
+
+# --- Terraform (legacy — kept in case infra code is added) ---
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+!terraform.tfvars.example
+
+# --- Scratch / local test files ---
+input.xml
+output.xml
+*_output.xml
+*_result.xml

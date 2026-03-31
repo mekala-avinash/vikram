@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2016-06-01/Microsoft.Logic.json",
+  "_comment": "TEMPLATE — Copy this file to environments/<env>/parameters.json and fill in the values. Never commit real secrets. Use Azure Key Vault references for all SecureString values.",
+  "ServiceBusTopicName": {
+    "type": "String",
+    "value": "invoice-ready-for-transformation"
+  },
+  "ServiceBusSubscriptionName": {
+    "type": "String",
+    "value": "logicapp-transform"
+  },
+  "ServiceBusQueueName": {
+    "type": "String",
+    "value": "ksef-xml-ready-for-submission"
+  },
+  "KsefAuthUrl": {
+    "type": "String",
+    "value": "https://login.smartksef-<ENVIRONMENT>.exorigo-upos.pl/<TENANT_ID>/B2C_1_susi/oauth2/v2.0/token"
+  },
+  "KsefClientId": {
+    "type": "String",
+    "value": "<YOUR_KSEF_CLIENT_ID>"
+  },
+  "KsefClientSecret": {
+    "type": "SecureString",
+    "value": "@Microsoft.KeyVault(SecretUri=https://<YOUR_KEYVAULT_NAME>.vault.azure.net/secrets/KsefClientSecret-<ENV>/)"
+  },
+  "KsefScope": {
+    "type": "String",
+    "value": "https://login.smartksef-<ENVIRONMENT>.exorigo-upos.pl/api/invoices/.default"
+  },
+  "KsefApiUrl": {
+    "type": "String",
+    "value": "https://api.smartksef-<ENVIRONMENT>.exorigo-upos.pl/invoices"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2016-06-01/Microsoft.Logic.json",
+  "_comment": "PRODUCTION environment parameters. Secrets (KsefClientSecret) must be injected via Azure Key Vault or CI/CD pipeline — never hardcoded here.",
+  "ServiceBusTopicName": {
+    "type": "String",
+    "value": "invoice-ready-for-transformation"
+  },
+  "ServiceBusSubscriptionName": {
+    "type": "String",
+    "value": "logicapp-transform"
+  },
+  "ServiceBusQueueName": {
+    "type": "String",
+    "value": "ksef-xml-ready-for-submission"
+  },
+  "KsefAuthUrl": {
+    "type": "String",
+    "value": "https://login.smartksef.exorigo-upos.pl/<TENANT_ID>/B2C_1_susi/oauth2/v2.0/token"
+  },
+  "KsefClientId": {
+    "type": "String",
+    "value": "<PRODUCTION_CLIENT_ID>"
+  },
+  "KsefClientSecret": {
+    "type": "SecureString",
+    "value": "@Microsoft.KeyVault(SecretUri=https://<YOUR_KEYVAULT_NAME>.vault.azure.net/secrets/KsefClientSecret-Prod/)"
+  },
+  "KsefScope": {
+    "type": "String",
+    "value": "https://login.smartksef.exorigo-upos.pl/api/invoices/.default"
+  },
+  "KsefApiUrl": {
+    "type": "String",
+    "value": "https://api.smartksef.exorigo-upos.pl/invoices"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "_comment": "This file is intentionally minimal. Environment-specific values live in environments/<env>/parameters.json. Deploy by copying the relevant env file here before running the Logic App deployment.",
+  "$schema": "https://schema.management.azure.com/schemas/2016-06-01/Microsoft.Logic.json"
+}

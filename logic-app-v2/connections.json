@@ -1,0 +1,38 @@
+{
+  "managedApiConnections": {
+    "sql": {
+      "api": {
+        "id": "/subscriptions/@appsetting('WORKFLOWS_SUBSCRIPTION_ID')/providers/Microsoft.Web/locations/@appsetting('WORKFLOWS_LOCATION_NAME')/managedApis/sql"
+      },
+      "connection": {
+        "id": "/subscriptions/@appsetting('WORKFLOWS_SUBSCRIPTION_ID')/resourceGroups/@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')/providers/Microsoft.Web/connections/sql"
+      },
+      "connectionRuntimeUrl": "@appsetting('sql_ConnectionRuntimeUrl')",
+      "authentication": {
+        "type": "Raw",
+        "scheme": "Key",
+        "parameter": "@appsetting('sql_ConnectionKey')"
+      }
+    }
+  },
+  "serviceProviderConnections": {
+    "sql-2": {
+      "parameterValues": {
+        "connectionString": "@appsetting('SqlConnectionString')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/sql"
+      },
+      "displayName": "SQL Built-in Connection"
+    },
+    "serviceBus": {
+      "parameterValues": {
+        "connectionString": "@appsetting('ServiceBusConnectionString')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/serviceBus"
+      },
+      "displayName": "Service Bus Built-in Connection"
+    }
+  }
+}

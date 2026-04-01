@@ -696,25 +696,46 @@
       <!-- ================================================================
            STOPKA (Footer)
            ================================================================ -->
-      <xsl:if test="Footer or $S/KRS or $S/REGON">
-        <Stopka>
-          <!-- Rejestry: KRS and REGON per Excel spec -->
-          <xsl:if test="normalize-space($S/KRS)!='' or normalize-space($S/REGON)!=''">
-            <Rejestry>
-              <xsl:if test="normalize-space($S/KRS)!=''"><KRS><xsl:value-of select="normalize-space($S/KRS)"/></KRS></xsl:if>
-              <xsl:if test="normalize-space($S/REGON)!=''"><REGON><xsl:value-of select="normalize-space($S/REGON)"/></REGON></xsl:if>
-            </Rejestry>
-          </xsl:if>
-          <!-- Informacje: Additional text/info -->
-          <xsl:if test="normalize-space(Footer/Text)!=''">
-            <Informacje><xsl:value-of select="normalize-space(Footer/Text)"/></Informacje>
-          </xsl:if>
-          <!-- StopkaFaktury: backward compatible free-text footer -->
-          <xsl:if test="normalize-space(Footer/StopkaFaktury)!=''">
-            <StopkaFaktury><xsl:value-of select="normalize-space(Footer/StopkaFaktury)"/></StopkaFaktury>
-          </xsl:if>
-        </Stopka>
-      </xsl:if>
+      <!-- ================================================================
+           STOPKA (Footer) — always emitted so payment instructions appear
+           on every invoice regardless of whether Footer data is present.
+           ================================================================ -->
+      <Stopka>
+        <!-- Rejestry: KRS and REGON per Excel spec -->
+        <xsl:if test="normalize-space($S/KRS)!='' or normalize-space($S/REGON)!=''">
+          <Rejestry>
+            <xsl:if test="normalize-space($S/KRS)!=''"><KRS><xsl:value-of select="normalize-space($S/KRS)"/></KRS></xsl:if>
+            <xsl:if test="normalize-space($S/REGON)!=''"><REGON><xsl:value-of select="normalize-space($S/REGON)"/></REGON></xsl:if>
+          </Rejestry>
+        </xsl:if>
+        <!-- Informacje: Additional text/info from payload -->
+        <xsl:if test="normalize-space(Footer/Text)!=''">
+          <Informacje><xsl:value-of select="normalize-space(Footer/Text)"/></Informacje>
+        </xsl:if>
+        <!--
+          StopkaFaktury: payment instructions, locale-aware.
+          Priority:
+            1. Explicit Footer/StopkaFaktury in the payload — used as-is.
+            2. Buyer country = PL, or no country specified → Polish text.
+            3. Buyer country is any non-PL value            → English text.
+        -->
+        <StopkaFaktury>
+          <xsl:choose>
+            <!-- 1. Payload-supplied footer takes precedence -->
+            <xsl:when test="normalize-space(Footer/StopkaFaktury)!=''">
+              <xsl:value-of select="normalize-space(Footer/StopkaFaktury)"/>
+            </xsl:when>
+            <!-- 2. Polish customer (PL country code or no country data) -->
+            <xsl:when test="$bC='' or $bC='PL'">
+              <xsl:text>W tytule przelewu prosimy powołać się na numer faktury VAT, której dotyczy wpłata. Dziękujemy za płatność w terminie. Niniejszą fakturę VAT traktuje się jako wezwanie do zapłaty. W przypadku niedokonania płatności w wyznaczonym terminie, sprzedawca zastrzega sobie prawo do obciążenia nabywcy kwotą odsetek karnych w wysokości ustawowej za okres od dnia, w którym należność stała się wymagalna do dnia dokonania płatności. Brak zapłaty za fakturę może grozić dopisaniem do Krajowego Rejestru Długów Biura Informacji Gospodarczej SA.</xsl:text>
+            </xsl:when>
+            <!-- 3. Non-Polish customer → English text -->
+            <xsl:otherwise>
+              <xsl:text>Please include the invoice number in the title of your payment transfer. Thank you for paying on time. The seller reserves the right to charge penalty interest at the legally specified rate on all amount overdue from the due date for payment up to the date of actual payment.</xsl:text>
+            </xsl:otherwise>
+          </xsl:choose>
+        </StopkaFaktury>
+      </Stopka>
     </Faktura>
   </xsl:template>
 

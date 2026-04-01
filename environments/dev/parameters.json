@@ -1,6 +1,7 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2016-06-01/Microsoft.Logic.json",
-  "_comment": "DEV environment parameters. Secrets (KsefClientSecret) must be injected via Azure Key Vault or CI/CD pipeline — never hardcoded here.",
+  "_comment": "DEV environment parameters. All non-secret values are set here. Secrets use Azure Key Vault references — never hardcode real secrets.",
+
   "ServiceBusTopicName": {
     "type": "String",
     "value": "invoice-ready-for-transformation"
@@ -13,13 +14,17 @@
     "type": "String",
     "value": "ksef-xml-ready-for-submission"
   },
+  "XsltMapName": {
+    "type": "String",
+    "value": "KsefFa3.xslt"
+  },
   "KsefAuthUrl": {
     "type": "String",
-    "value": "https://login.smartksef-staging.exorigo-upos.pl/d92dfc98-2b80-4938-97f5-d4bee2112678/B2C_1_susi/oauth2/v2.0/token"
+    "value": "https://login.smartksef-staging.exorigo-upos.pl/<DEV_TENANT_ID>/B2C_1_susi/oauth2/v2.0/token"
   },
   "KsefClientId": {
     "type": "String",
-    "value": "0a0c76b5-31eb-47ec-86ff-ae15588b2212"
+    "value": "<DEV_CLIENT_ID>"
   },
   "KsefClientSecret": {
     "type": "SecureString",

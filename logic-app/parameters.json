@@ -1,4 +1,41 @@
 {
-  "_comment": "This file is intentionally minimal. Environment-specific values live in environments/<env>/parameters.json. Deploy by copying the relevant env file here before running the Logic App deployment.",
-  "$schema": "https://schema.management.azure.com/schemas/2016-06-01/Microsoft.Logic.json"
+  "$schema": "https://schema.management.azure.com/schemas/2016-06-01/Microsoft.Logic.json",
+  "_comment": "App-level Logic App parameters. All values reference Azure App Settings so each environment supplies its own values via Azure Portal, ARM template, or CI/CD pipeline. For a direct env override: copy environments/<env>/parameters.json over this file before deploying.",
+
+  "ServiceBusTopicName": {
+    "type": "String",
+    "value": "@appsetting('ServiceBusTopicName')"
+  },
+  "ServiceBusSubscriptionName": {
+    "type": "String",
+    "value": "@appsetting('ServiceBusSubscriptionName')"
+  },
+  "ServiceBusQueueName": {
+    "type": "String",
+    "value": "@appsetting('ServiceBusQueueName')"
+  },
+  "KsefAuthUrl": {
+    "type": "String",
+    "value": "@appsetting('KsefAuthUrl')"
+  },
+  "KsefClientId": {
+    "type": "String",
+    "value": "@appsetting('KsefClientId')"
+  },
+  "KsefClientSecret": {
+    "type": "SecureString",
+    "value": "@appsetting('KsefClientSecret')"
+  },
+  "KsefScope": {
+    "type": "String",
+    "value": "@appsetting('KsefScope')"
+  },
+  "KsefApiUrl": {
+    "type": "String",
+    "value": "@appsetting('KsefApiUrl')"
+  },
+  "XsltMapName": {
+    "type": "String",
+    "value": "@appsetting('XsltMapName')"
+  }
 }

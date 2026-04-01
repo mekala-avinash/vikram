@@ -180,6 +180,26 @@
             }
         },
         "outputs": {},
+        "parameters": {
+            "KsefAuthUrl": {
+                "type": "string"
+            },
+            "KsefClientId": {
+                "type": "string"
+            },
+            "KsefClientSecret": {
+                "type": "securestring"
+            },
+            "KsefScope": {
+                "type": "string"
+            },
+            "KsefApiUrl": {
+                "type": "string"
+            },
+            "ServiceBusQueueName": {
+                "type": "string"
+            }
+        },
         "triggers": {
             "When_message_arrives_in_queue": {
                 "type": "ServiceProvider",

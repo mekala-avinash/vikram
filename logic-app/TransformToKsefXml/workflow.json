@@ -57,7 +57,7 @@
                             "content": "@string(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1']?[0]?['CanonicalData'])",
                             "map": {
                                 "source": "LogicApp",
-                                "name": "KsefFa3.xslt"
+                                "name": "@parameters('XsltMapName')"
                             }
                         }
                     },
@@ -149,6 +149,20 @@
             }
         },
         "outputs": {},
+        "parameters": {
+            "ServiceBusTopicName": {
+                "type": "string"
+            },
+            "ServiceBusSubscriptionName": {
+                "type": "string"
+            },
+            "ServiceBusQueueName": {
+                "type": "string"
+            },
+            "XsltMapName": {
+                "type": "string"
+            }
+        },
         "triggers": {
             "When_messages_are_available_in_a_topic_subscription_(peek-lock)": {
                 "type": "ServiceProvider",

@@ -490,6 +490,30 @@
         <!-- ================================================================
              PLATNOSC (Payment)
              ================================================================ -->
+        <!--
+          Payment term description: resolve from Payment/* first, then
+          fall back to Header/PaymentTerms/* (alternate canonical layout).
+        -->
+        <xsl:variable name="ptDays">
+          <xsl:choose>
+            <xsl:when test="normalize-space($P/TermDescription/Days)!=''"><xsl:value-of select="normalize-space($P/TermDescription/Days)"/></xsl:when>
+            <xsl:when test="normalize-space($P/PaymentDays)!=''"><xsl:value-of select="normalize-space($P/PaymentDays)"/></xsl:when>
+            <xsl:when test="normalize-space($H/PaymentTerms/TermDescription/Days)!=''"><xsl:value-of select="normalize-space($H/PaymentTerms/TermDescription/Days)"/></xsl:when>
+            <xsl:when test="normalize-space($H/PaymentTerms/PaymentDays)!=''"><xsl:value-of select="normalize-space($H/PaymentTerms/PaymentDays)"/></xsl:when>
+          </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name="ptUnit">
+          <xsl:choose>
+            <xsl:when test="normalize-space($P/TermDescription/Unit)!=''"><xsl:value-of select="normalize-space($P/TermDescription/Unit)"/></xsl:when>
+            <xsl:when test="normalize-space($H/PaymentTerms/TermDescription/Unit)!=''"><xsl:value-of select="normalize-space($H/PaymentTerms/TermDescription/Unit)"/></xsl:when>
+          </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name="ptStart">
+          <xsl:choose>
+            <xsl:when test="normalize-space($P/TermDescription/StartEvent)!=''"><xsl:value-of select="normalize-space($P/TermDescription/StartEvent)"/></xsl:when>
+            <xsl:when test="normalize-space($H/PaymentTerms/TermDescription/StartEvent)!=''"><xsl:value-of select="normalize-space($H/PaymentTerms/TermDescription/StartEvent)"/></xsl:when>
+          </xsl:choose>
+        </xsl:variable>
         <xsl:variable name="pDue"><xsl:choose><xsl:when test="normalize-space($P/DueDate)!=''"><xsl:value-of select="normalize-space($P/DueDate)"/></xsl:when><xsl:otherwise><xsl:value-of select="normalize-space($H/DueDate)"/></xsl:otherwise></xsl:choose></xsl:variable>
         <xsl:variable name="pMeth"><xsl:choose><xsl:when test="normalize-space($P/Method)!=''"><xsl:value-of select="normalize-space($P/Method)"/></xsl:when><xsl:otherwise><xsl:value-of select="normalize-space($H/PaymentMethod)"/></xsl:otherwise></xsl:choose></xsl:variable>
         <!--
@@ -588,22 +612,21 @@
             <!-- 2. TerminPlatnosci -->
             <TerminPlatnosci>
               <Termin><xsl:value-of select="$pDue"/></Termin>
-              <!-- TerminOpis: Structured payment term description -->
-              <xsl:if test="normalize-space($P/TermDescription/Days)!='' or normalize-space($P/PaymentDays)!='' or normalize-space($P/TermDescription/Unit)!='' or normalize-space($P/TermDescription/StartEvent)!=''">
+              <!--
+                TerminOpis: resolved via $ptDays/$ptUnit/$ptStart variables which
+                check Payment/TermDescription, Payment/PaymentDays, and
+                Header/PaymentTerms/TermDescription (in that priority order).
+              -->
+              <xsl:if test="$ptDays!='' or $ptUnit!='' or $ptStart!=''">
                 <TerminOpis>
-                  <xsl:choose>
-                    <xsl:when test="normalize-space($P/TermDescription/Days)!=''">
-                      <Ilosc><xsl:value-of select="normalize-space($P/TermDescription/Days)"/></Ilosc>
-                    </xsl:when>
-                    <xsl:when test="normalize-space($P/PaymentDays)!=''">
-                      <Ilosc><xsl:value-of select="normalize-space($P/PaymentDays)"/></Ilosc>
-                    </xsl:when>
-                  </xsl:choose>
-                  <xsl:if test="normalize-space($P/TermDescription/Unit)!=''">
-                    <Jednostka><xsl:value-of select="normalize-space($P/TermDescription/Unit)"/></Jednostka>
+                  <xsl:if test="$ptDays!=''">
+                    <Ilosc><xsl:value-of select="$ptDays"/></Ilosc>
                   </xsl:if>
-                  <xsl:if test="normalize-space($P/TermDescription/StartEvent)!=''">
-                    <ZdarzeniePoczatkowe><xsl:value-of select="normalize-space($P/TermDescription/StartEvent)"/></ZdarzeniePoczatkowe>
+                  <xsl:if test="$ptUnit!=''">
+                    <Jednostka><xsl:value-of select="$ptUnit"/></Jednostka>
+                  </xsl:if>
+                  <xsl:if test="$ptStart!=''">
+                    <ZdarzeniePoczatkowe><xsl:value-of select="$ptStart"/></ZdarzeniePoczatkowe>
                   </xsl:if>
                 </TerminOpis>
               </xsl:if>

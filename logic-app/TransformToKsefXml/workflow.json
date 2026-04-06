@@ -52,16 +52,159 @@
                     ]
                 },
                 "actions": {
+
+                    "Extract_Header_Fields": {
+                        "type": "Compose",
+                        "inputs": {
+                            "Currency": "@{xpath(xml(string(body('Execute_a_SQL_query_(V2)')?[0]?[0]?['CanonicalData'])), 'string(/CanonicalInvoice/Header/Currency)')}",
+                            "IssueDate": "@{xpath(xml(string(body('Execute_a_SQL_query_(V2)')?[0]?[0]?['CanonicalData'])), 'string(/CanonicalInvoice/Header/IssueDate)')}",
+                            "ExchangeRate": "@{xpath(xml(string(body('Execute_a_SQL_query_(V2)')?[0]?[0]?['CanonicalData'])), 'string(/CanonicalInvoice/Header/ExchangeRate)')}"
+                        },
+                        "runAfter": {}
+                    },
+
+                    "Check_Needs_FX_Rate": {
+                        "type": "If",
+                        "expression": {
+                            "and": [
+                                {
+                                    "not": {
+                                        "equals": [
+                                            "@outputs('Extract_Header_Fields')?['Currency']",
+                                            ""
+                                        ]
+                                    }
+                                },
+                                {
+                                    "not": {
+                                        "equals": [
+                                            "@outputs('Extract_Header_Fields')?['Currency']",
+                                            "PLN"
+                                        ]
+                                    }
+                                },
+                                {
+                                    "equals": [
+                                        "@outputs('Extract_Header_Fields')?['ExchangeRate']",
+                                        ""
+                                    ]
+                                }
+                            ]
+                        },
+                        "actions": {
+
+                            "Calculate_Preceding_Business_Day": {
+                                "type": "Compose",
+                                "inputs": "@formatDateTime(if(equals(dayOfWeek(parseDateTime(outputs('Extract_Header_Fields')?['IssueDate'])), 1), addDays(parseDateTime(outputs('Extract_Header_Fields')?['IssueDate']), -3), if(equals(dayOfWeek(parseDateTime(outputs('Extract_Header_Fields')?['IssueDate'])), 0), addDays(parseDateTime(outputs('Extract_Header_Fields')?['IssueDate']), -2), addDays(parseDateTime(outputs('Extract_Header_Fields')?['IssueDate']), -1))), 'yyyy-MM-dd')",
+                                "runAfter": {}
+                            },
+
+                            "Call_NBP_Rate": {
+                                "type": "Http",
+                                "inputs": {
+                                    "method": "GET",
+                                    "uri": "https://api.nbp.pl/api/exchangerates/rates/a/@{toLower(outputs('Extract_Header_Fields')?['Currency'])}/@{outputs('Calculate_Preceding_Business_Day')}/?format=json",
+                                    "headers": {
+                                        "Accept": "application/json"
+                                    },
+                                    "retryPolicy": {
+                                        "type": "none"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Calculate_Preceding_Business_Day": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            },
+
+                            "Call_NBP_Rate_Fallback": {
+                                "type": "Http",
+                                "inputs": {
+                                    "method": "GET",
+                                    "uri": "https://api.nbp.pl/api/exchangerates/rates/a/@{toLower(outputs('Extract_Header_Fields')?['Currency'])}/last/1/?format=json",
+                                    "headers": {
+                                        "Accept": "application/json"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Call_NBP_Rate": [
+                                        "Failed",
+                                        "TimedOut"
+                                    ]
+                                }
+                            },
+
+                            "Terminate_NBP_Unavailable": {
+                                "type": "Terminate",
+                                "inputs": {
+                                    "runStatus": "Failed",
+                                    "runError": {
+                                        "code": "NBP_API_UNAVAILABLE",
+                                        "message": "@{concat('Cannot determine NBP exchange rate for ', outputs('Extract_Header_Fields')?['Currency'], ' on ', outputs('Calculate_Preceding_Business_Day'), '. Both primary and fallback NBP API calls failed. Cannot produce P_14_xW for KSeF.')}"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Call_NBP_Rate_Fallback": [
+                                        "Failed",
+                                        "TimedOut"
+                                    ]
+                                }
+                            },
+
+                            "Get_Effective_NBP_Rate": {
+                                "type": "Compose",
+                                "inputs": "@coalesce(body('Call_NBP_Rate')?['rates']?[0]?['mid'], body('Call_NBP_Rate_Fallback')?['rates']?[0]?['mid'])",
+                                "runAfter": {
+                                    "Call_NBP_Rate": [
+                                        "Succeeded",
+                                        "Failed",
+                                        "TimedOut"
+                                    ],
+                                    "Call_NBP_Rate_Fallback": [
+                                        "Succeeded",
+                                        "Skipped"
+                                    ]
+                                }
+                            },
+
+                            "Inject_ExchangeRate_Into_XML": {
+                                "type": "Compose",
+                                "inputs": "@replace(string(body('Execute_a_SQL_query_(V2)')?[0]?[0]?['CanonicalData']), '</Header>', concat('<ExchangeRate>', string(outputs('Get_Effective_NBP_Rate')), '</ExchangeRate></Header>'))",
+                                "runAfter": {
+                                    "Get_Effective_NBP_Rate": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            }
+
+                        },
+                        "else": {
+                            "actions": {}
+                        },
+                        "runAfter": {
+                            "Extract_Header_Fields": [
+                                "Succeeded"
+                            ]
+                        }
+                    },
+
                     "Transform_XML": {
                         "type": "Xslt",
                         "inputs": {
-                            "content": "@string(body('Execute_a_SQL_query_(V2)')?[0]?[0]?['CanonicalData'])",
+                            "content": "@coalesce(outputs('Inject_ExchangeRate_Into_XML'), string(body('Execute_a_SQL_query_(V2)')?[0]?[0]?['CanonicalData']))",
                             "map": {
                                 "source": "LogicApp",
                                 "name": "@parameters('XsltMapName')"
                             }
+                        },
+                        "runAfter": {
+                            "Check_Needs_FX_Rate": [
+                                "Succeeded"
+                            ]
                         }
                     },
+
                     "Upsert_PartnerSubmission": {
                         "type": "ServiceProvider",
                         "inputs": {
@@ -84,6 +227,7 @@
                             ]
                         }
                     },
+
                     "Send_Queue_Message": {
                         "type": "ServiceProvider",
                         "inputs": {
@@ -111,6 +255,7 @@
                             ]
                         }
                     },
+
                     "Complete_Message_Success": {
                         "type": "ServiceProvider",
                         "inputs": {
@@ -131,6 +276,7 @@
                             ]
                         }
                     }
+
                 },
                 "else": {
                     "actions": {

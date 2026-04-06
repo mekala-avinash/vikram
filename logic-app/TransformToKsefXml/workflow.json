@@ -19,18 +19,19 @@
                 "runAfter": {}
             },
             "Execute_a_SQL_query_(V2)": {
-                "type": "ApiConnection",
+                "type": "ServiceProvider",
                 "inputs": {
-                    "host": {
-                        "connection": {
-                            "referenceName": "sql"
+                    "parameters": {
+                        "query": "SELECT CanonicalData FROM [EDI].[InvoiceCanonicals] WHERE CanonicalId = @CanonicalId",
+                        "queryParameters": {
+                            "CanonicalId": "@body('Parse_CanonicalId')?['CanonicalId']"
                         }
                     },
-                    "method": "post",
-                    "body": {
-                        "query": "SELECT CanonicalData FROM [EDI].[InvoiceCanonicals] WHERE CanonicalId = @{body('Parse_CanonicalId')?['CanonicalId']}"
-                    },
-                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('default'))},@{encodeURIComponent(encodeURIComponent('default'))}/query/sql"
+                    "serviceProviderConfiguration": {
+                        "connectionName": "sql",
+                        "operationId": "executeQuery",
+                        "serviceProviderId": "/serviceProviders/sql"
+                    }
                 },
                 "runAfter": {
                     "Parse_CanonicalId": [
@@ -44,7 +45,7 @@
                     "and": [
                         {
                             "greater": [
-                                "@length(coalesce(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1'], json('[]')))",
+                                "@length(coalesce(body('Execute_a_SQL_query_(V2)')?[0], json('[]')))",
                                 0
                             ]
                         }
@@ -54,7 +55,7 @@
                     "Transform_XML": {
                         "type": "Xslt",
                         "inputs": {
-                            "content": "@string(body('Execute_a_SQL_query_(V2)')?['ResultSets']?['Table1']?[0]?['CanonicalData'])",
+                            "content": "@string(body('Execute_a_SQL_query_(V2)')?[0]?[0]?['CanonicalData'])",
                             "map": {
                                 "source": "LogicApp",
                                 "name": "@parameters('XsltMapName')"
@@ -72,7 +73,7 @@
                                 }
                             },
                             "serviceProviderConfiguration": {
-                                "connectionName": "sql-2",
+                                "connectionName": "sql",
                                 "operationId": "executeQuery",
                                 "serviceProviderId": "/serviceProviders/sql"
                             }

@@ -36,5 +36,13 @@
   "KsefApiUrl": {
     "type": "String",
     "value": "https://api.smartksef.exorigo-upos.pl/invoices"
+  },
+  "SqlConnectionString": {
+    "type": "SecureString",
+    "value": "@Microsoft.KeyVault(SecretUri=https://<YOUR_KEYVAULT_NAME>.vault.azure.net/secrets/SqlConnectionString-Prod/)"
+  },
+  "ServiceBusConnectionString": {
+    "type": "SecureString",
+    "value": "@Microsoft.KeyVault(SecretUri=https://<YOUR_KEYVAULT_NAME>.vault.azure.net/secrets/ServiceBusConnectionString-Prod/)"
   }
 }

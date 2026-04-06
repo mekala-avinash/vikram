@@ -113,6 +113,9 @@
     <xsl:if test="not($L)">
       <xsl:message terminate="yes">FATAL [<xsl:value-of select="$H/InvoiceNumber"/>]: At least one Lines/LineItem is required.</xsl:message>
     </xsl:if>
+    <xsl:if test="$isFX and normalize-space($H/ExchangeRate)=''">
+      <xsl:message terminate="yes">FATAL [<xsl:value-of select="$H/InvoiceNumber"/>]: Header/ExchangeRate is required for foreign-currency invoices (Currency=<xsl:value-of select="$ccy"/>) but is missing or empty. KSeF requires P_14_xW (VAT in PLN) which cannot be computed without it.</xsl:message>
+    </xsl:if>
     <xsl:if test="$debug='true'">
       <xsl:message>DEBUG inv=<xsl:value-of select="$H/InvoiceNumber"/> lines=<xsl:value-of select="count($L)"/> ccy=<xsl:value-of select="$ccy"/> zrc=<xsl:value-of select="$zrc"/> type=<xsl:value-of select="$invType"/></xsl:message>
     </xsl:if>
@@ -289,6 +292,7 @@
         <xsl:call-template name="emit-tax">
           <xsl:with-param name="L" select="$L"/><xsl:with-param name="SM" select="$SM"/>
           <xsl:with-param name="zrc" select="$zrc"/><xsl:with-param name="isFX" select="$isFX"/>
+          <xsl:with-param name="exchangeRate" select="normalize-space($H/ExchangeRate)"/>
         </xsl:call-template>
 
         <!-- P_15: Total gross amount -->
@@ -766,7 +770,7 @@
        TAX SUMMARIES
        ===================================================================== -->
   <xsl:template name="emit-tax">
-    <xsl:param name="L"/><xsl:param name="SM"/><xsl:param name="zrc"/><xsl:param name="isFX"/>
+    <xsl:param name="L"/><xsl:param name="SM"/><xsl:param name="zrc"/><xsl:param name="isFX"/><xsl:param name="exchangeRate" select="''"/>
     <xsl:choose>
       <xsl:when test="$SM/TaxBreakdown/TaxLine">
         <!-- 23% -->
@@ -776,7 +780,11 @@
         <xsl:if test="$n23&gt;0 or $t23&gt;0">
           <P_13_1><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$n23"/></xsl:call-template></P_13_1>
           <P_14_1><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t23"/></xsl:call-template></P_14_1>
-          <xsl:if test="$isFX and $t23w=$t23w and $t23w!=0"><P_14_1W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t23w"/></xsl:call-template></P_14_1W></xsl:if>
+          <xsl:if test="$isFX">
+            <!-- Use explicit TaxAmountPLN when provided; fall back to TaxAmount × ExchangeRate -->
+            <xsl:variable name="t23w_eff"><xsl:choose><xsl:when test="$t23w=$t23w and $t23w!=0"><xsl:value-of select="$t23w"/></xsl:when><xsl:when test="number($exchangeRate)=number($exchangeRate)"><xsl:value-of select="$t23 * number($exchangeRate)"/></xsl:when><xsl:otherwise>0</xsl:otherwise></xsl:choose></xsl:variable>
+            <xsl:if test="number($t23w_eff)!=0"><P_14_1W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t23w_eff"/></xsl:call-template></P_14_1W></xsl:if>
+          </xsl:if>
         </xsl:if>
         <!-- 8% -->
         <xsl:variable name="n8" select="sum($SM/TaxBreakdown/TaxLine[Rate='8']/NetAmount)"/>
@@ -785,7 +793,10 @@
         <xsl:if test="$n8&gt;0 or $t8&gt;0">
           <P_13_2><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$n8"/></xsl:call-template></P_13_2>
           <P_14_2><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t8"/></xsl:call-template></P_14_2>
-          <xsl:if test="$isFX and $t8w=$t8w and $t8w!=0"><P_14_2W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t8w"/></xsl:call-template></P_14_2W></xsl:if>
+          <xsl:if test="$isFX">
+            <xsl:variable name="t8w_eff"><xsl:choose><xsl:when test="$t8w=$t8w and $t8w!=0"><xsl:value-of select="$t8w"/></xsl:when><xsl:when test="number($exchangeRate)=number($exchangeRate)"><xsl:value-of select="$t8 * number($exchangeRate)"/></xsl:when><xsl:otherwise>0</xsl:otherwise></xsl:choose></xsl:variable>
+            <xsl:if test="number($t8w_eff)!=0"><P_14_2W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t8w_eff"/></xsl:call-template></P_14_2W></xsl:if>
+          </xsl:if>
         </xsl:if>
         <!-- 5% -->
         <xsl:variable name="n5" select="sum($SM/TaxBreakdown/TaxLine[Rate='5']/NetAmount)"/>
@@ -794,7 +805,10 @@
         <xsl:if test="$n5&gt;0 or $t5&gt;0">
           <P_13_3><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$n5"/></xsl:call-template></P_13_3>
           <P_14_3><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t5"/></xsl:call-template></P_14_3>
-          <xsl:if test="$isFX and $t5w=$t5w and $t5w!=0"><P_14_3W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t5w"/></xsl:call-template></P_14_3W></xsl:if>
+          <xsl:if test="$isFX">
+            <xsl:variable name="t5w_eff"><xsl:choose><xsl:when test="$t5w=$t5w and $t5w!=0"><xsl:value-of select="$t5w"/></xsl:when><xsl:when test="number($exchangeRate)=number($exchangeRate)"><xsl:value-of select="$t5 * number($exchangeRate)"/></xsl:when><xsl:otherwise>0</xsl:otherwise></xsl:choose></xsl:variable>
+            <xsl:if test="number($t5w_eff)!=0"><P_14_3W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$t5w_eff"/></xsl:call-template></P_14_3W></xsl:if>
+          </xsl:if>
         </xsl:if>
         <!-- 0% — route to correct P_13 bucket based on zero rate code -->
         <xsl:variable name="n0" select="sum($SM/TaxBreakdown/TaxLine[Rate='0']/NetAmount)"/>
@@ -820,21 +834,37 @@
         <!-- Line-level aggregation fallback -->
         <xsl:variable name="ln23" select="sum($L[normalize-space(Tax/Rate)='23']/NetAmount)"/>
         <xsl:variable name="lt23" select="sum($L[normalize-space(Tax/Rate)='23']/Tax/Amount)"/>
+        <xsl:variable name="lt23w" select="sum($L[normalize-space(Tax/Rate)='23']/Tax/AmountPLN)"/>
         <xsl:if test="$ln23&gt;0 or $lt23&gt;0">
           <P_13_1><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$ln23"/></xsl:call-template></P_13_1>
           <P_14_1><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$lt23"/></xsl:call-template></P_14_1>
+          <xsl:if test="$isFX">
+            <!-- Use explicit Tax/AmountPLN when provided; fall back to Tax/Amount × ExchangeRate -->
+            <xsl:variable name="lt23w_eff"><xsl:choose><xsl:when test="$lt23w=$lt23w and $lt23w!=0"><xsl:value-of select="$lt23w"/></xsl:when><xsl:when test="number($exchangeRate)=number($exchangeRate)"><xsl:value-of select="$lt23 * number($exchangeRate)"/></xsl:when><xsl:otherwise>0</xsl:otherwise></xsl:choose></xsl:variable>
+            <xsl:if test="number($lt23w_eff)!=0"><P_14_1W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$lt23w_eff"/></xsl:call-template></P_14_1W></xsl:if>
+          </xsl:if>
         </xsl:if>
         <xsl:variable name="ln8" select="sum($L[normalize-space(Tax/Rate)='8']/NetAmount)"/>
         <xsl:variable name="lt8" select="sum($L[normalize-space(Tax/Rate)='8']/Tax/Amount)"/>
+        <xsl:variable name="lt8w" select="sum($L[normalize-space(Tax/Rate)='8']/Tax/AmountPLN)"/>
         <xsl:if test="$ln8&gt;0 or $lt8&gt;0">
           <P_13_2><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$ln8"/></xsl:call-template></P_13_2>
           <P_14_2><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$lt8"/></xsl:call-template></P_14_2>
+          <xsl:if test="$isFX">
+            <xsl:variable name="lt8w_eff"><xsl:choose><xsl:when test="$lt8w=$lt8w and $lt8w!=0"><xsl:value-of select="$lt8w"/></xsl:when><xsl:when test="number($exchangeRate)=number($exchangeRate)"><xsl:value-of select="$lt8 * number($exchangeRate)"/></xsl:when><xsl:otherwise>0</xsl:otherwise></xsl:choose></xsl:variable>
+            <xsl:if test="number($lt8w_eff)!=0"><P_14_2W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$lt8w_eff"/></xsl:call-template></P_14_2W></xsl:if>
+          </xsl:if>
         </xsl:if>
         <xsl:variable name="ln5" select="sum($L[normalize-space(Tax/Rate)='5']/NetAmount)"/>
         <xsl:variable name="lt5" select="sum($L[normalize-space(Tax/Rate)='5']/Tax/Amount)"/>
+        <xsl:variable name="lt5w" select="sum($L[normalize-space(Tax/Rate)='5']/Tax/AmountPLN)"/>
         <xsl:if test="$ln5&gt;0 or $lt5&gt;0">
           <P_13_3><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$ln5"/></xsl:call-template></P_13_3>
           <P_14_3><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$lt5"/></xsl:call-template></P_14_3>
+          <xsl:if test="$isFX">
+            <xsl:variable name="lt5w_eff"><xsl:choose><xsl:when test="$lt5w=$lt5w and $lt5w!=0"><xsl:value-of select="$lt5w"/></xsl:when><xsl:when test="number($exchangeRate)=number($exchangeRate)"><xsl:value-of select="$lt5 * number($exchangeRate)"/></xsl:when><xsl:otherwise>0</xsl:otherwise></xsl:choose></xsl:variable>
+            <xsl:if test="number($lt5w_eff)!=0"><P_14_3W><xsl:call-template name="safe-amount"><xsl:with-param name="v" select="$lt5w_eff"/></xsl:call-template></P_14_3W></xsl:if>
+          </xsl:if>
         </xsl:if>
         <xsl:variable name="ln0" select="sum($L[normalize-space(Tax/Rate)='0' or normalize-space(Tax/Rate)='0.00' or normalize-space(Tax/Rate)='0.0' or normalize-space(Tax/Rate)='0 KR' or normalize-space(Tax/Rate)='0 WDT' or normalize-space(Tax/Rate)='0 EX']/NetAmount)"/>
         <xsl:if test="$ln0&gt;0"><xsl:choose>

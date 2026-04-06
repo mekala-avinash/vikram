@@ -28,7 +28,7 @@
                         }
                     },
                     "serviceProviderConfiguration": {
-                        "connectionName": "sql-2",
+                        "connectionName": "sql",
                         "operationId": "executeQuery",
                         "serviceProviderId": "/serviceProviders/sql"
                     }
@@ -42,14 +42,12 @@
             "Get_OAuth_Token": {
                 "type": "Http",
                 "inputs": {
-                    "uri": "@{parameters('KsefAuthUrl')}?grant_type=client_credentials&client_id=@{parameters('KsefClientId')}&client_secret=@{parameters('KsefClientSecret')}&scope=@{parameters('KsefScope')}",
+                    "uri": "@parameters('KsefAuthUrl')",
                     "method": "POST",
-                    "queries": {
-                        "grant_type": "client_credentials",
-                        "client_id": "@parameters('KsefClientId')",
-                        "client_secret": "@parameters('KsefClientSecret')",
-                        "scope": "@parameters('KsefScope')"
-                    }
+                    "headers": {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    "body": "grant_type=client_credentials&client_id=@{encodeUriComponent(parameters('KsefClientId'))}&client_secret=@{encodeUriComponent(parameters('KsefClientSecret'))}&scope=@{encodeUriComponent(parameters('KsefScope'))}"
                 },
                 "runAfter": {
                     "Get_Partner_XML": [
@@ -140,7 +138,7 @@
                                 "includeEmptyResultSets": true
                             },
                             "serviceProviderConfiguration": {
-                                "connectionName": "sql-2",
+                                "connectionName": "sql",
                                 "operationId": "executeStoredProcedure",
                                 "serviceProviderId": "/serviceProviders/sql"
                             }
@@ -162,7 +160,7 @@
                                     "includeEmptyResultSets": true
                                 },
                                 "serviceProviderConfiguration": {
-                                    "connectionName": "sql-2",
+                                    "connectionName": "sql",
                                     "operationId": "executeStoredProcedure",
                                     "serviceProviderId": "/serviceProviders/sql"
                                 }

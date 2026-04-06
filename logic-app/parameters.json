@@ -37,5 +37,13 @@
   "XsltMapName": {
     "type": "String",
     "value": "@appsetting('XsltMapName')"
+  },
+  "SqlConnectionString": {
+    "type": "SecureString",
+    "value": "@appsetting('SqlConnectionString')"
+  },
+  "ServiceBusConnectionString": {
+    "type": "SecureString",
+    "value": "@appsetting('ServiceBusConnectionString')"
   }
 }

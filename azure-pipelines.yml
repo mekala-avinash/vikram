@@ -1,0 +1,380 @@
+# =============================================================================
+# azure-pipelines.yml — KSeF Logic App CD Pipeline
+# =============================================================================
+# Stages:  Deploy-Dev  →  Deploy-Staging (approval)  →  Deploy-Production (approval)
+#
+# Prerequisites — create one variable group per environment in Azure DevOps
+# (Pipelines → Library → Variable groups) with these variables:
+#
+#   Group name: ksef-logicapp-dev
+#   ┌─────────────────────────────────────┬──────────────────────────────────┐
+#   │ Variable                            │ Example value                    │
+#   ├─────────────────────────────────────┼──────────────────────────────────┤
+#   │ azureServiceConnection              │ sc-azure-dev                     │
+#   │ azureResourceGroup                  │ rg-ksef-dev                      │
+#   │ logicAppName                        │ la-ksef-dev                      │
+#   │ logicAppIntegrationAccountName      │ ia-ksef-dev  (leave blank to skip│
+#   └─────────────────────────────────────┴──────────────────────────────────┘
+#   Repeat as: ksef-logicapp-staging  /  ksef-logicapp-prod
+#
+# Prerequisites — create Azure DevOps Environments for approval gates:
+#   Pipelines → Environments → New environment
+#     • ksef-dev       (no approvals needed)
+#     • ksef-staging   (add approvers)
+#     • ksef-prod      (add approvers)
+# =============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - logic-app/**
+      - environments/**
+      - azure-pipelines.yml
+
+pr: none
+
+# ---------------------------------------------------------------------------
+# Stage template — reused for every environment
+# ---------------------------------------------------------------------------
+# Azure DevOps does not support inline stage templates without a separate file,
+# so each stage is written explicitly. Changes to deployment logic should be
+# made in all three stages.
+# ---------------------------------------------------------------------------
+
+stages:
+
+  # ── DEV ────────────────────────────────────────────────────────────────────
+  - stage: Deploy_Dev
+    displayName: 'Deploy → Dev'
+    variables:
+      - group: ksef-logicapp-dev
+    jobs:
+      - deployment: DeployLogicApp
+        displayName: 'Deploy Logic App (dev)'
+        environment: ksef-dev
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                # 1. Stage the env-specific parameters file
+                - bash: |
+                    cp environments/dev/parameters.json logic-app/parameters.json
+                    echo "Staged environments/dev/parameters.json → logic-app/parameters.json"
+                  displayName: 'Stage env parameters'
+
+                # 2. Zip-deploy the Logic App artifact
+                - task: AzureCLI@2
+                  displayName: 'Zip deploy Logic App'
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      cd logic-app
+                      zip -r ../logic-app.zip . --exclude "*.md"
+                      cd ..
+                      az logicapp deployment source config-zip \
+                        --resource-group "$(azureResourceGroup)" \
+                        --name "$(logicAppName)" \
+                        --src logic-app.zip \
+                        --output none
+                      echo "✓ Zip deploy complete"
+
+                # 3. Set ALL App Settings (String values + SecureString KV references)
+                - task: AzureCLI@2
+                  displayName: 'Set App Settings'
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      SETTINGS_ARGS=()
+                      while IFS= read -r line; do
+                        SETTINGS_ARGS+=("$line")
+                      done < <(jq -r '
+                        to_entries
+                        | map(select(.key != "_comment" and .key != "$schema"))
+                        | map("\(.key)=\(.value.value)")
+                        | .[]
+                      ' environments/dev/parameters.json)
+
+                      if [[ ${#SETTINGS_ARGS[@]} -gt 0 ]]; then
+                        az logicapp config appsettings set \
+                          --resource-group "$(azureResourceGroup)" \
+                          --name "$(logicAppName)" \
+                          --settings "${SETTINGS_ARGS[@]}" \
+                          --output none
+                        echo "✓ App Settings synced (${#SETTINGS_ARGS[@]} values)"
+                      fi
+
+                # 4. Upload XSLT map to Integration Account (skipped if variable is empty)
+                - task: AzureCLI@2
+                  displayName: 'Upload XSLT map to Integration Account'
+                  condition: and(succeeded(), ne(variables['logicAppIntegrationAccountName'], ''))
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      az logic integration-account map create \
+                        --resource-group "$(azureResourceGroup)" \
+                        --integration-account-name "$(logicAppIntegrationAccountName)" \
+                        --name "KsefFa3" \
+                        --map-type "Xslt" \
+                        --content-type "application/xml" \
+                        --content @logic-app/maps/KsefFa3.xslt \
+                        --output none
+                      echo "✓ Map uploaded: KsefFa3.xslt"
+
+                # 5. Upload XSD schemas to Integration Account
+                - task: AzureCLI@2
+                  displayName: 'Upload schemas to Integration Account'
+                  condition: and(succeeded(), ne(variables['logicAppIntegrationAccountName'], ''))
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      for xsd in logic-app/schemas/*.xsd; do
+                        name="$(basename "${xsd%.*}")"
+                        az logic integration-account schema create \
+                          --resource-group "$(azureResourceGroup)" \
+                          --integration-account-name "$(logicAppIntegrationAccountName)" \
+                          --name "$name" \
+                          --schema-type "Xml" \
+                          --content-type "application/xml" \
+                          --content @"$xsd" \
+                          --output none
+                        echo "✓ Schema uploaded: $name"
+                      done
+
+  # ── STAGING ────────────────────────────────────────────────────────────────
+  - stage: Deploy_Staging
+    displayName: 'Deploy → Staging'
+    dependsOn: Deploy_Dev
+    condition: succeeded()
+    variables:
+      - group: ksef-logicapp-staging
+    jobs:
+      - deployment: DeployLogicApp
+        displayName: 'Deploy Logic App (staging)'
+        environment: ksef-staging
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - bash: |
+                    cp environments/staging/parameters.json logic-app/parameters.json
+                    echo "Staged environments/staging/parameters.json → logic-app/parameters.json"
+                  displayName: 'Stage env parameters'
+
+                - task: AzureCLI@2
+                  displayName: 'Zip deploy Logic App'
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      cd logic-app
+                      zip -r ../logic-app.zip . --exclude "*.md"
+                      cd ..
+                      az logicapp deployment source config-zip \
+                        --resource-group "$(azureResourceGroup)" \
+                        --name "$(logicAppName)" \
+                        --src logic-app.zip \
+                        --output none
+                      echo "✓ Zip deploy complete"
+
+                - task: AzureCLI@2
+                  displayName: 'Set App Settings'
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      SETTINGS_ARGS=()
+                      while IFS= read -r line; do
+                        SETTINGS_ARGS+=("$line")
+                      done < <(jq -r '
+                        to_entries
+                        | map(select(.key != "_comment" and .key != "$schema"))
+                        | map("\(.key)=\(.value.value)")
+                        | .[]
+                      ' environments/staging/parameters.json)
+
+                      if [[ ${#SETTINGS_ARGS[@]} -gt 0 ]]; then
+                        az logicapp config appsettings set \
+                          --resource-group "$(azureResourceGroup)" \
+                          --name "$(logicAppName)" \
+                          --settings "${SETTINGS_ARGS[@]}" \
+                          --output none
+                        echo "✓ App Settings synced (${#SETTINGS_ARGS[@]} values)"
+                      fi
+
+                - task: AzureCLI@2
+                  displayName: 'Upload XSLT map to Integration Account'
+                  condition: and(succeeded(), ne(variables['logicAppIntegrationAccountName'], ''))
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      az logic integration-account map create \
+                        --resource-group "$(azureResourceGroup)" \
+                        --integration-account-name "$(logicAppIntegrationAccountName)" \
+                        --name "KsefFa3" \
+                        --map-type "Xslt" \
+                        --content-type "application/xml" \
+                        --content @logic-app/maps/KsefFa3.xslt \
+                        --output none
+                      echo "✓ Map uploaded: KsefFa3.xslt"
+
+                - task: AzureCLI@2
+                  displayName: 'Upload schemas to Integration Account'
+                  condition: and(succeeded(), ne(variables['logicAppIntegrationAccountName'], ''))
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      for xsd in logic-app/schemas/*.xsd; do
+                        name="$(basename "${xsd%.*}")"
+                        az logic integration-account schema create \
+                          --resource-group "$(azureResourceGroup)" \
+                          --integration-account-name "$(logicAppIntegrationAccountName)" \
+                          --name "$name" \
+                          --schema-type "Xml" \
+                          --content-type "application/xml" \
+                          --content @"$xsd" \
+                          --output none
+                        echo "✓ Schema uploaded: $name"
+                      done
+
+  # ── PRODUCTION ─────────────────────────────────────────────────────────────
+  - stage: Deploy_Production
+    displayName: 'Deploy → Production'
+    dependsOn: Deploy_Staging
+    condition: succeeded()
+    variables:
+      - group: ksef-logicapp-prod
+    jobs:
+      - deployment: DeployLogicApp
+        displayName: 'Deploy Logic App (production)'
+        environment: ksef-prod
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - bash: |
+                    cp environments/production/parameters.json logic-app/parameters.json
+                    echo "Staged environments/production/parameters.json → logic-app/parameters.json"
+                  displayName: 'Stage env parameters'
+
+                - task: AzureCLI@2
+                  displayName: 'Zip deploy Logic App'
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      cd logic-app
+                      zip -r ../logic-app.zip . --exclude "*.md"
+                      cd ..
+                      az logicapp deployment source config-zip \
+                        --resource-group "$(azureResourceGroup)" \
+                        --name "$(logicAppName)" \
+                        --src logic-app.zip \
+                        --output none
+                      echo "✓ Zip deploy complete"
+
+                - task: AzureCLI@2
+                  displayName: 'Set App Settings'
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      SETTINGS_ARGS=()
+                      while IFS= read -r line; do
+                        SETTINGS_ARGS+=("$line")
+                      done < <(jq -r '
+                        to_entries
+                        | map(select(.key != "_comment" and .key != "$schema"))
+                        | map("\(.key)=\(.value.value)")
+                        | .[]
+                      ' environments/production/parameters.json)
+
+                      if [[ ${#SETTINGS_ARGS[@]} -gt 0 ]]; then
+                        az logicapp config appsettings set \
+                          --resource-group "$(azureResourceGroup)" \
+                          --name "$(logicAppName)" \
+                          --settings "${SETTINGS_ARGS[@]}" \
+                          --output none
+                        echo "✓ App Settings synced (${#SETTINGS_ARGS[@]} values)"
+                      fi
+
+                - task: AzureCLI@2
+                  displayName: 'Upload XSLT map to Integration Account'
+                  condition: and(succeeded(), ne(variables['logicAppIntegrationAccountName'], ''))
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      az logic integration-account map create \
+                        --resource-group "$(azureResourceGroup)" \
+                        --integration-account-name "$(logicAppIntegrationAccountName)" \
+                        --name "KsefFa3" \
+                        --map-type "Xslt" \
+                        --content-type "application/xml" \
+                        --content @logic-app/maps/KsefFa3.xslt \
+                        --output none
+                      echo "✓ Map uploaded: KsefFa3.xslt"
+
+                - task: AzureCLI@2
+                  displayName: 'Upload schemas to Integration Account'
+                  condition: and(succeeded(), ne(variables['logicAppIntegrationAccountName'], ''))
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      for xsd in logic-app/schemas/*.xsd; do
+                        name="$(basename "${xsd%.*}")"
+                        az logic integration-account schema create \
+                          --resource-group "$(azureResourceGroup)" \
+                          --integration-account-name "$(logicAppIntegrationAccountName)" \
+                          --name "$name" \
+                          --schema-type "Xml" \
+                          --content-type "application/xml" \
+                          --content @"$xsd" \
+                          --output none
+                        echo "✓ Schema uploaded: $name"
+                      done
